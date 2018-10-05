@@ -88,23 +88,7 @@ headerSize :: Int
 headerSize = 8
 
 readSaffire :: FWARef -> [Control] -> IO [(Control, Value)]
-readSaffire devPtr controls =
-    let buffSize = headerSize + 8 * length controls
-    in
-    allocaBytes buffSize $ \(cmdPtr :: Ptr SaffireLEQuery)  ->
-    allocaBytes buffSize $ \(resultPtr :: Ptr SaffireLEResponse) ->
-    alloca               $ \(resultSizePtr :: Ptr CUInt) -> do
-        let fields = (\ctl -> (ctl, 0)) <$> controls
-            cmd = (SaffireLEQuery Read fields)
-        pokeQuery cmdPtr cmd
-        poke resultSizePtr (fromIntegral buffSize)
-
-        status <- fwaExecuteAVC devPtr cmdPtr (fromIntegral buffSize) resultPtr resultSizePtr
-        putTextLn $ "AVC status: " +|| status ||+ ""
-        resultSize <- peek resultSizePtr
-        print resultSize
-        SaffireLEResponse fields <- peekResponse resultPtr
-        pure fields
+readSaffire devPtr controls = writeSaffire devPtr ((\ctl -> (ctl, 0)) <$> controls)
 
 
 writeSaffire :: FWARef -> [(Control, Value)] -> IO [(Control, Value)]
@@ -124,26 +108,6 @@ writeSaffire devPtr controls =
         print resultSize
         SaffireLEResponse fields <- peekResponse resultPtr
         pure fields
-
-
--- readSaffire' :: FWARef -> IO ()
--- readSaffire' devPtr =
---     allocaBytes 16 $ \(cmdPtr :: Ptr CChar)  ->
---     allocaBytes 256 $ \(resultPtr :: Ptr CChar) ->
---     alloca           $ \resultSizePtr -> do
---         let request :: [CChar] = [ 1,  0xff, 0x00, 0x00, 0x13, 0x0e, 0x03, 1
---                                  , 0     ,0 ,    0 ,   0x5a,    0   , 0    , 0 ,  0]
---         pokeArray cmdPtr request
---         poke resultSizePtr 256
---         status <- fwaExecuteAVC devPtr cmdPtr 16 resultPtr resultSizePtr
---         putTextLn $ "AVC status: " +|| hexF status ||+ ""
---         resultSize <- peek resultSizePtr
---         print resultSize
---         result :: [CChar] <- peekArray 16 resultPtr
---         putTextLn $ "Result: " +| listF' hexF result |+ ""
-
---         pass
-
 
 newtype FWNodeId = FWNodeId Word32
 
