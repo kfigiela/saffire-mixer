@@ -21,12 +21,32 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
+- containers
 - universum
 - fmt
 - memory
+- mtl
+- enumerate
+- aeson
+- aeson-pretty
+- yaml
+- data-default
+- lens
+- split
+- text
+- generic-deriving
+- optparse-applicative
+
 
 default-extensions:
 - NoImplicitPrelude
+- OverloadedStrings
+- ScopedTypeVariables
+- DeriveAnyClass
+- DeriveGeneric
+- DuplicateRecordFields
+- LambdaCase
+- ViewPatterns
 
 library:
   source-dirs: src
@@ -39,7 +59,8 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    - -framework FWAUserLib
+    frameworks:
+     - FWAUserLib
     dependencies:
     - saffire-mixer
 

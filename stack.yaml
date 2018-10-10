@@ -40,6 +40,8 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - fmt-0.6
+- enumerate-0.2.2
+- spiros-0.0.0
 # Override default flag values for local packages and extra-deps
 # flags: {}
 

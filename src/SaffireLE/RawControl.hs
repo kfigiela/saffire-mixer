@@ -1,12 +1,14 @@
-module Lib
-    ( Control(..)
-    ) where
+module SaffireLE.RawControl where
 
 import Universum
-import Universum.Unsafe
+
+import Universum.Unsafe (fromJust)
 import Data.List (lookup)
 
-data Control =
+type RawControlId = Word32
+type RawControlValue = Word32
+
+data RawControl =
       Pc1ToOut1
     | Pc1ToOut3
     | Pc1ToOut2
@@ -63,7 +65,11 @@ data Control =
     | Spdif2ToOut3
     | Spdif2ToOut2
     | Spdif2ToOut4
-    | SwapOut4Out148K
+    -- ??
+    | Out1ToSpdifOut1
+    | Out2ToSpdifOut2
+
+    -- Mixer 96k
     | In1ToRecmix96K
     | In3ToRecmix96K
     | Spdif1ToRecmix96K
@@ -82,7 +88,7 @@ data Control =
     | RecmixToOut496K
     | Pc1ToOut496K
     | Pc2ToOut496K
-    | SwapOut4Out196K
+    -- Metering
     | MeteringIn1
     | MeteringIn3
     | MeteringSpdif1
@@ -101,28 +107,26 @@ data Control =
     | MeteringPc3
     | MeteringPc2
     | MeteringPc4
+    --
     | HighGainLine3
     | HighGainLine4
     | BitfieldOut12
     | BitfieldOut34
     | BitfieldOut56
-    -- | BitfieldBitDim
-    -- | BitfieldBitMute
-    -- | BitfieldBitDacignore
-    -- | BitfieldBitHwctrl
-    -- | BitfieldBitDac
     | ExtClockLock
     | AudioOn
     | SaveSettings
     | Midithru
     | SpdifTransparent
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
-instance Enum Control where
-    fromEnum = fromIntegral . fromJust . flip lookup controlsTable
-    toEnum = fromJust . flip lookup (map swap controlsTable) . fromIntegral
+fromRawControlEnum :: RawControl -> RawControlId
+fromRawControlEnum = fromJust . flip lookup controlsTable
 
-controlsTable :: [(Control, Word8)]
+toRawControlEnum :: RawControlId -> RawControl
+toRawControlEnum = fromJust . flip lookup (map swap controlsTable)
+
+controlsTable :: [(RawControl, RawControlId)]
 controlsTable =
     [ (Pc1ToOut1,             0)
     , (Pc1ToOut3,             1)
@@ -182,7 +186,7 @@ controlsTable =
     , (Spdif2ToOut2,          54)
     , (Spdif2ToOut4,          55)
 
-    , (SwapOut4Out148K,       64)
+    , (Out1ToSpdifOut1,       64)
 
     -- // 96kHz controls
     , (In1ToRecmix96K,        66)
@@ -205,7 +209,7 @@ controlsTable =
     , (Pc1ToOut496K,          82)
     , (Pc2ToOut496K,          83)
 
-    , (SwapOut4Out196K,       84)
+    , (Out2ToSpdifOut2,       84)
 
     -- // metering
     , (MeteringIn1,           90)
@@ -237,16 +241,32 @@ controlsTable =
     , (BitfieldOut34,         88)
     , (BitfieldOut56,         89)
 
-
-    -- , (BitfieldBitDim,        24)
-    -- , (BitfieldBitMute,       25)
-    -- , (BitfieldBitDacignore,  26)
-    -- , (BitfieldBitHwctrl,     27)
-    -- , (BitfieldBitDac,        0)
-
     , (ExtClockLock,          108)
     , (AudioOn,               109)
     , (SaveSettings,          110)
     , (Midithru,              111)
     , (SpdifTransparent,      112)
+    ]
+
+data BitField =
+      BitfieldBitDim
+    | BitfieldBitMute
+    | BitfieldBitDacignore
+    | BitfieldBitHwctrl
+    | BitfieldBitDac
+    deriving (Show, Eq)
+
+fromBitFieldEnum :: BitField -> RawControlValue
+fromBitFieldEnum = fromJust . flip lookup bitFieldTable
+
+toBitFieldEnum :: RawControlValue -> BitField
+toBitFieldEnum = fromJust . flip lookup (map swap bitFieldTable)
+
+bitFieldTable :: [(BitField, RawControlValue)]
+bitFieldTable =
+    [ (BitfieldBitDim,        24)
+    , (BitfieldBitMute,       25)
+    , (BitfieldBitDacignore,  26)
+    , (BitfieldBitHwctrl,     27)
+    , (BitfieldBitDac,        0)
     ]
