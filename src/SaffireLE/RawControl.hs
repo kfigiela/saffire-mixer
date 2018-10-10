@@ -220,12 +220,12 @@ controlsTable =
     , (MeteringSpdif2,        95)
 
     , (MeteringOut1,          96)
+    , (MeteringOut2,          98)
     , (MeteringOut3,          97)
-    , (MeteringOut5,          98)
-    , (MeteringOut7,          99)
-    , (MeteringOut2,          100)
-    , (MeteringOut4,          101)
+    , (MeteringOut4,          99)
+    , (MeteringOut5,          100)
     , (MeteringOut6,          102)
+    , (MeteringOut7,          101)
     , (MeteringOut8,          103)
 
     , (MeteringPc1,           104)

@@ -99,7 +99,8 @@ writeSaffire = writeSaffire' Write
 writeSaffire' :: AVCOp -> FWARef -> [(RawControl, RawControlValue)] -> IO [(RawControl, RawControlValue)]
 writeSaffire' avcOp devPtr controls = mconcat <$> chunkResults
     where
-        chunks = chunksOf 32 controls
+        chunks = chunksOf 32 controls'
+        controls' = sortWith fst controls
         chunkResults = mapM chunkResult chunks
         chunkResult controls = writeSaffire'' avcOp devPtr controls
 
@@ -119,6 +120,7 @@ writeSaffire'' avcOp devPtr controls =
         resultSize <- peek resultSizePtr
         print resultSize
         SaffireLEResponse fields <- peekResponse resultPtr
+        print fields
         pure fields
 
 newtype FWNodeId = FWNodeId Word32 deriving (Show, Eq)

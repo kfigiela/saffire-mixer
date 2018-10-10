@@ -53,8 +53,8 @@ data InChannel
     | DAC8
     deriving (Show, Eq, Generic, Ord, Enumerable, FromJSON, ToJSON)
 
-instance ToJSONKey InChannel where toJSONKey = toJSONKeyText $ toText . gEnumToString def
-instance FromJSONKey InChannel where fromJSONKey = FromJSONKeyTextParser $ \text -> maybe (fail "Invalid InChannel") pure (gEnumFromString def $ toString text)
+instance ToJSONKey InChannel where toJSONKey = toJSONKeyText $ toText . gEnumToString
+instance FromJSONKey InChannel where fromJSONKey = FromJSONKeyTextParser $ \text -> maybe (fail "Invalid InChannel") pure (gEnumFromString $ toString text)
 
 data OutChannel
     = Out1
@@ -67,12 +67,14 @@ data OutChannel
     | SpdifOut8
     deriving (Show, Eq, Generic, Ord, Enumerable, FromJSON, ToJSON)
 
-instance ToJSONKey OutChannel where toJSONKey = toJSONKeyText $ toText . gEnumToString def
-instance FromJSONKey OutChannel where fromJSONKey = FromJSONKeyTextParser $ \text -> maybe (fail "Invalid OutChannel") pure (gEnumFromString def $ toString text)
+instance ToJSONKey OutChannel where toJSONKey = toJSONKeyText $ toText . gEnumToString
+instance FromJSONKey OutChannel where fromJSONKey = FromJSONKeyTextParser $ \text -> maybe (fail "Invalid OutChannel") pure (gEnumFromString $ toString text)
 
 data Mix = Mix { _in :: InChannel, _out :: OutChannel } deriving (Show, Eq, Generic, Ord, ToJSON, FromJSON, Enumerable)
 
 data Meter = InMeter InChannel | OutMeter OutChannel deriving (Show, Eq, Generic, Ord, ToJSON, FromJSON, Enumerable)
+
+instance ToJSONKey Meter where toJSONKey = toJSONKeyText $ show
 
 type MixValue = Double
 type MeterValue = Word32
@@ -141,40 +143,28 @@ mixToControl = \case
 
 data OutOpts
     = OutOpts
-    { _dim :: Bool
-    , _mute :: Bool
-    , _dacIgnore :: Bool
-    , _hwControl :: Bool
-    , _attenuation :: Word8
+    { _mute :: Bool
+    , _attenuation :: Double
     } deriving (Show, Eq, Generic)
 
 instance ToJSON   OutOpts where    toJSON = genericToJSON    stripLensPrefix
 instance FromJSON OutOpts where parseJSON = genericParseJSON stripLensPrefix
 
 instance Default OutOpts where
-    def = OutOpts False False False False 0
+    def = OutOpts False 0
 
 fromOutOpts :: OutOpts -> Word32
-fromOutOpts (OutOpts dim mute dacIgnore hwControl attenuation) =
+fromOutOpts (OutOpts mute attenuation) =
     (0 :: Word32)
-        &  byteAt 0
-        .~ attenuation
-        &  bitAt 24
-        .~ dim
-        &  bitAt 25
-        .~ mute
-        &  bitAt 26
-        .~ dacIgnore
-        &  bitAt 27
-        .~ hwControl
-
+    &  byteAt 0 .~ attenuation'
+    &  bitAt 25 .~ mute
+    where
+        attenuation' :: Word8
+        attenuation' = floor $ attenuation * 0x7f
 toOutOpts :: Word32 -> OutOpts
 toOutOpts value = OutOpts
-    { _dim         = value ^. bitAt 24
-    , _mute        = value ^. bitAt 25
-    , _dacIgnore   = value ^. bitAt 26
-    , _hwControl   = value ^. bitAt 27
-    , _attenuation = value ^. byteAt 0
+    { _mute        = value ^. bitAt 25
+    , _attenuation = (fromIntegral $ value ^. byteAt 0) / 0x7f
     }
 
 
@@ -193,7 +183,7 @@ data MixerState
     } deriving (Show, Eq, Generic)
 
 instance ToJSON   MixerState where    toJSON = genericToJSON    stripLensPrefix
--- instance FromJSON MixerState where parseJSON = genericParseJSON stripLensPrefix
+instance FromJSON MixerState where parseJSON = genericParseJSON stripLensPrefix
 
 instance Default MixerState where
     def = MixerState
@@ -209,18 +199,21 @@ instance Default MixerState where
         , _spdifTransparent = False
         }
 
-data SaffireState
-    = SaffireState
-    { _mixer :: MixerState
-    , _meters :: Map Meter MeterValue
+data DeviceState
+    = DeviceState
+    { _meters :: Map Meter MeterValue
     , _extClockLock :: Bool
     , _audioOn :: Bool
     } deriving (Show, Eq, Generic)
 
--- instance ToJSON   SaffireState where    toJSON = genericToJSON    stripLensPrefix
--- instance FromJSON SaffireState where parseJSON = genericParseJSON stripLensPrefix
+instance Default DeviceState where
+    def = DeviceState def False False
+
+instance ToJSON   DeviceState where    toJSON = genericToJSON    stripLensPrefix
+-- instance FromJSON DeviceState where parseJSON = genericParseJSON stripLensPrefix
 
 makeLenses ''MixerState
+makeLenses ''DeviceState
 makeLenses ''OutOpts
 
 updateMixerState :: MixerState -> [(RawControl, RawControlValue)] -> MixerState
@@ -325,5 +318,46 @@ isTrue _ = error "Invalid boolean"
 allControls :: [RawControl]
 allControls = fst <$> mixerControls
 
+
+
+----
+
+updateDeviceState :: DeviceState -> [(RawControl, RawControlValue)] -> DeviceState
+updateDeviceState = foldl updateDeviceState'
+
+updateDeviceState' :: DeviceState -> (RawControl, RawControlValue) -> DeviceState
+updateDeviceState' state (control, value) = f value state where
+    f = fromMaybe (const identity) $ meterControlsMap ^. at control
+    meterControlsMap = Map.fromList meterControls
+
+meterControls :: [(RawControl, RawControlValue -> DeviceState -> DeviceState)]
+meterControls =
+    [ (MeteringIn1,    channelMeter (InMeter In1))
+    , (MeteringIn3,    channelMeter (InMeter In3))
+    , (MeteringSpdif1, channelMeter (InMeter SpdifIn1))
+    , (MeteringIn2,    channelMeter (InMeter In2))
+    , (MeteringIn4,    channelMeter (InMeter In4))
+    , (MeteringSpdif2, channelMeter (InMeter SpdifIn2))
+    , (MeteringOut1,   channelMeter (OutMeter Out1))
+    , (MeteringOut3,   channelMeter (OutMeter Out3))
+    , (MeteringOut5,   channelMeter (OutMeter Out5))
+    , (MeteringOut7,   channelMeter (OutMeter SpdifOut7))
+    , (MeteringOut2,   channelMeter (OutMeter Out2))
+    , (MeteringOut4,   channelMeter (OutMeter Out4))
+    , (MeteringOut6,   channelMeter (OutMeter Out6))
+    , (MeteringOut8,   channelMeter (OutMeter SpdifOut8))
+    , (MeteringPc1,    channelMeter (InMeter DAC1))
+    , (MeteringPc3,    channelMeter (InMeter DAC3))
+    , (MeteringPc2,    channelMeter (InMeter DAC2))
+    , (MeteringPc4,    channelMeter (InMeter DAC4))
+    , (ExtClockLock, booleanControl extClockLock)
+    , (AudioOn, booleanControl audioOn)
+    ]
+  where
+    booleanControl :: Lens' DeviceState Bool -> (RawControlValue -> DeviceState -> DeviceState)
+    booleanControl l value = l .~ isTrue value
+    channelMeter :: Meter -> (RawControlValue -> DeviceState -> DeviceState)
+    channelMeter meter value = meters . at meter ?~ value
+
 allMeters :: [RawControl]
-allMeters = []
+allMeters = fst <$> meterControls
