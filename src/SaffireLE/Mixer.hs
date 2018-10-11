@@ -1,40 +1,29 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeOperators   #-}
 
 module SaffireLE.Mixer where
 
 import           Universum
-import           Data.Aeson (genericParseJSON, genericToJSON, parseJSON, toJSON)
-import           Data.Aeson.Extra (stripLensPrefix, unwrapNewtypes)
-import           Data.Aeson                               ( FromJSON
-                                                          , ToJSON
-                                                          , FromJSONKey
-                                                          , ToJSONKey
-                                                          , toJSONKey
-                                                          , fromJSONKey
-                                                          , FromJSONKeyFunction(FromJSONKeyTextParser))
-import           Data.Aeson.Types                         ( toJSONKeyText )
-import           Data.Aeson.Extra
-import           Enumerate                                ( Enumerable(..)
-                                                          , enumerated
-                                                          )
-import           Control.Lens                             ( (?~)
-                                                          , at
-                                                          , non
-                                                          )
-import           Control.Lens.TH                          ( makeLenses )
-import qualified Data.Map                      as Map
-import           Data.Bits
-import           Data.Default
-import           SaffireLE.RawControl                     ( RawControl(..)
-                                                          , RawControlValue(..)
-                                                          )
-import           Data.Bits.Lens
 
-import GenericEnum
+import           Control.Lens         (at, non, (?~))
+import           Control.Lens.TH      (makeLenses)
+import           Data.Aeson           (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser),
+                                       ToJSON, ToJSONKey, fromJSONKey,
+                                       genericParseJSON, genericToJSON,
+                                       parseJSON, toJSON, toJSONKey)
+import           Data.Aeson.Extra     (stripLensPrefix)
+import           Data.Aeson.Types     (toJSONKeyText)
+import           Data.Bits.Lens       (bitAt, byteAt)
+import           Data.Default         (Default, def)
+import qualified Data.Map             as Map
+import           Fmt                  ((+||), (||+))
+import           GenericEnum          (gEnumFromString, gEnumToString)
+
+import           SaffireLE.RawControl (RawControl (..), RawControlValue)
+
 
 data InChannel
     = In1
@@ -51,7 +40,7 @@ data InChannel
     | DAC6
     | DAC7
     | DAC8
-    deriving (Show, Eq, Generic, Ord, Enumerable, FromJSON, ToJSON)
+    deriving (Show, Eq, Generic, Ord, FromJSON, ToJSON)
 
 instance ToJSONKey InChannel where toJSONKey = toJSONKeyText $ toText . gEnumToString
 instance FromJSONKey InChannel where fromJSONKey = FromJSONKeyTextParser $ \text -> maybe (fail "Invalid InChannel") pure (gEnumFromString $ toString text)
@@ -65,16 +54,16 @@ data OutChannel
     | Out6
     | SpdifOut7
     | SpdifOut8
-    deriving (Show, Eq, Generic, Ord, Enumerable, FromJSON, ToJSON)
+    deriving (Show, Eq, Generic, Ord, FromJSON, ToJSON)
 
 instance ToJSONKey OutChannel where toJSONKey = toJSONKeyText $ toText . gEnumToString
 instance FromJSONKey OutChannel where fromJSONKey = FromJSONKeyTextParser $ \text -> maybe (fail "Invalid OutChannel") pure (gEnumFromString $ toString text)
 
-data Mix = Mix { _in :: InChannel, _out :: OutChannel } deriving (Show, Eq, Generic, Ord, ToJSON, FromJSON, Enumerable)
+data Mix = Mix { _in :: InChannel, _out :: OutChannel } deriving (Show, Eq, Generic, Ord, ToJSON, FromJSON)
 
-data Meter = InMeter InChannel | OutMeter OutChannel deriving (Show, Eq, Generic, Ord, ToJSON, FromJSON, Enumerable)
+data Meter = InMeter InChannel | OutMeter OutChannel deriving (Show, Eq, Generic, Ord, ToJSON, FromJSON)
 
-instance ToJSONKey Meter where toJSONKey = toJSONKeyText $ show
+instance ToJSONKey Meter where toJSONKey = toJSONKeyText show
 
 type MixValue = Double
 type MeterValue = Word32
@@ -138,12 +127,11 @@ mixToControl = \case
     Mix SpdifIn2 Out3 -> Spdif2ToOut3
     Mix SpdifIn2 Out2 -> Spdif2ToOut2
     Mix SpdifIn2 Out4 -> Spdif2ToOut4
-
-
+    Mix inp      out  -> error $ "Unsupported mix: " +|| inp ||+ " -> " +|| out ||+ ""
 
 data OutOpts
     = OutOpts
-    { _mute :: Bool
+    { _mute        :: Bool
     , _attenuation :: Double
     } deriving (Show, Eq, Generic)
 
@@ -170,15 +158,15 @@ toOutOpts value = OutOpts
 
 data MixerState
     = MixerState
-    { _mix :: Map OutChannel (Map InChannel MixValue)
-    , _in3Gain :: Bool
-    , _in4Gain :: Bool
-    , _out12Opts :: OutOpts
-    , _out34Opts :: OutOpts
-    , _out56Opts :: OutOpts
-    , _out1ToSpdif1 :: Bool
-    , _out2ToSpdif2 :: Bool
-    , _midiThru :: Bool
+    { _mix              :: Map OutChannel (Map InChannel MixValue)
+    , _in3Gain          :: Bool
+    , _in4Gain          :: Bool
+    , _out12Opts        :: OutOpts
+    , _out34Opts        :: OutOpts
+    , _out56Opts        :: OutOpts
+    , _out1ToSpdif1     :: Bool
+    , _out2ToSpdif2     :: Bool
+    , _midiThru         :: Bool
     , _spdifTransparent :: Bool
     } deriving (Show, Eq, Generic)
 
@@ -201,9 +189,9 @@ instance Default MixerState where
 
 data DeviceState
     = DeviceState
-    { _meters :: Map Meter MeterValue
+    { _meters       :: Map Meter MeterValue
     , _extClockLock :: Bool
-    , _audioOn :: Bool
+    , _audioOn      :: Bool
     } deriving (Show, Eq, Generic)
 
 instance Default DeviceState where

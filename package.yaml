@@ -26,7 +26,6 @@ dependencies:
 - fmt
 - memory
 - mtl
-- enumerate
 - aeson
 - aeson-pretty
 - yaml
@@ -36,6 +35,7 @@ dependencies:
 - text
 - generic-deriving
 - optparse-applicative
+- bytestring
 
 
 default-extensions:
@@ -47,6 +47,8 @@ default-extensions:
 - DuplicateRecordFields
 - LambdaCase
 - ViewPatterns
+- ScopedTypeVariables
+- TupleSections
 
 library:
   source-dirs: src

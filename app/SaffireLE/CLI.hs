@@ -4,7 +4,6 @@ import Universum
 
 import Data.Default (def)
 
-import SaffireLE.RawControl(RawControl(..))
 import SaffireLE.Device
 import SaffireLE.Mixer
 import Fmt

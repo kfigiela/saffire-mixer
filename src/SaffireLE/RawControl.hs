@@ -1,13 +1,15 @@
 module SaffireLE.RawControl where
 
-import Universum
+import           Universum
 
-import Universum.Unsafe (fromJust)
-import Data.List (lookup)
+import           Data.List        (lookup)
+import           Universum.Unsafe (fromJust)
 
-type RawControlId = Word32
+
+type RawControlId    = Word32
 type RawControlValue = Word32
 
+-- | Enum type for all parameters that may be retrived/set on Saffire LE
 data RawControl =
       Pc1ToOut1
     | Pc1ToOut3
@@ -65,7 +67,7 @@ data RawControl =
     | Spdif2ToOut3
     | Spdif2ToOut2
     | Spdif2ToOut4
-    -- ??
+    -- To confirm
     | Out1ToSpdifOut1
     | Out2ToSpdifOut2
 
@@ -110,14 +112,14 @@ data RawControl =
     --
     | HighGainLine3
     | HighGainLine4
-    | BitfieldOut12
-    | BitfieldOut34
-    | BitfieldOut56
-    | ExtClockLock
-    | AudioOn
+    | BitfieldOut12 -- Attenuation level + mute bit flag
+    | BitfieldOut34 -- Attenuation level + mute bit flag
+    | BitfieldOut56 -- Attenuation level + mute bit flag
+    | ExtClockLock -- ^ Indicates if DAC is locked on external SPDIF clock
+    | AudioOn -- ^ Indicates if there is audio playing from computer
     | SaveSettings
     | Midithru
-    | SpdifTransparent
+    | SpdifTransparent -- ^ SPDIF pass-thru
     deriving (Show, Eq, Ord)
 
 fromRawControlEnum :: RawControl -> RawControlId
@@ -126,6 +128,7 @@ fromRawControlEnum = fromJust . flip lookup controlsTable
 toRawControlEnum :: RawControlId -> RawControl
 toRawControlEnum = fromJust . flip lookup (map swap controlsTable)
 
+-- | Encodes mapping between control enum and control id
 controlsTable :: [(RawControl, RawControlId)]
 controlsTable =
     [ (Pc1ToOut1,             0)
@@ -160,7 +163,6 @@ controlsTable =
     , (Pc8ToOut3,             29)
     , (Pc8ToOut2,             30)
     , (Pc8ToOut4,             31)
-
     , (In1ToOut1,             32)
     , (In1ToOut3,             33)
     , (In1ToOut2,             34)
@@ -188,7 +190,7 @@ controlsTable =
 
     , (Out1ToSpdifOut1,       64)
 
-    -- // 96kHz controls
+    -- 96kHz controls
     , (In1ToRecmix96K,        66)
     , (In3ToRecmix96K,        67)
     , (Spdif1ToRecmix96K,     68)
@@ -246,27 +248,4 @@ controlsTable =
     , (SaveSettings,          110)
     , (Midithru,              111)
     , (SpdifTransparent,      112)
-    ]
-
-data BitField =
-      BitfieldBitDim
-    | BitfieldBitMute
-    | BitfieldBitDacignore
-    | BitfieldBitHwctrl
-    | BitfieldBitDac
-    deriving (Show, Eq)
-
-fromBitFieldEnum :: BitField -> RawControlValue
-fromBitFieldEnum = fromJust . flip lookup bitFieldTable
-
-toBitFieldEnum :: RawControlValue -> BitField
-toBitFieldEnum = fromJust . flip lookup (map swap bitFieldTable)
-
-bitFieldTable :: [(BitField, RawControlValue)]
-bitFieldTable =
-    [ (BitfieldBitDim,        24)
-    , (BitfieldBitMute,       25)
-    , (BitfieldBitDacignore,  26)
-    , (BitfieldBitHwctrl,     27)
-    , (BitfieldBitDac,        0)
     ]
