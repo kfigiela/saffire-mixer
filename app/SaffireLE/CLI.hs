@@ -4,19 +4,27 @@ import Universum
 
 import Data.Default (def)
 
-import SaffireLE.Device
-import SaffireLE.Mixer
+
 import Fmt
 import Data.Yaml (decodeFileThrow)
 import Data.Yaml.Pretty
-import Control.Exception (handle)
+import Control.Exception (handle, AsyncException(..), throw)
 import Options.Applicative
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.Map as Map
+import qualified Data.Text as Text
+
+import SaffireLE.Device
+import SaffireLE.Mixer
+import Control.Concurrent
+import SaffireLE.Status
+import System.Console.ANSI
 
 data Command
   = LoadSettings { _filename :: FilePath }
   | DumpSettings { _filename :: FilePath }
   | Meter
+  | FancyMeter
   deriving (Eq, Show)
 
 loadSettings :: Parser Command
@@ -31,6 +39,7 @@ cli = subparser
    (  command "load"  (info loadSettings (progDesc "Load settings from file to device"))
    <> command "dump"  (info dumpSettings (progDesc "Dump settings from device to file"))
    <> command "meter" (info (pure Meter) (progDesc "Read data from DSP meters"))
+   <> command "fancymeter" (info (pure FancyMeter) (progDesc "Read data from DSP meters"))
    )
 
 main :: IO ()
@@ -40,12 +49,9 @@ opts :: ParserInfo Command
 opts = info (cli <**> helper) idm
 
 runCommands :: Command -> IO ()
-runCommands cmd =
-    forM_ nodeIds $ \nodeId ->
-    handle (\(err :: DeviceError) -> putTextLn $ show err) $
-        withDevice nodeId $ \devPtr -> do
-            guid <- getGUID devPtr
-            putTextLn $ "GUID: " +| hexF guid |+ ""
+runCommands cmd = do
+    success <- flip anyM nodeIds $ \nodeId ->
+        handle (\(err :: DeviceError) -> pure False) $ withDevice nodeId $ \devPtr -> do
             case cmd of
                 LoadSettings file -> do
                     mixerState <- decodeFileThrow file
@@ -57,9 +63,31 @@ runCommands cmd =
                         yaml = encodePretty (defConfig & setConfCompare compare) mixer'
                     void $ BS.writeFile file yaml
                 Meter -> do
-                    pass
                     rawData <- readSaffire devPtr allMeters
-                    let mixer' = updateDeviceState def rawData
-                        yaml = encodePretty (defConfig & setConfCompare compare) mixer'
-                    putTextLn $ blockListF' "- " show rawData |+""
+                    let status = updateDeviceStatus def rawData
+                        yaml = encodePretty (defConfig & setConfCompare compare) status
                     BS.putStrLn yaml
+                FancyMeter -> do
+                    hideCursor
+                    clearScreen
+                    handle onUserInterrupt $ forM_ [0..] $ \_ -> do
+                        rawData <- readSaffire devPtr allMeters
+                        let status = updateDeviceStatus def rawData
+                        setCursorPosition 0 0
+                        putTextLn $ Text.intercalate "\n" $ mkFancyBar <$> Map.toList (status ^. meters)
+                        threadDelay 20090
+            pure True
+    unless success $ putTextLn "Error communicating with the device"
+
+
+
+mkFancyBar :: (Meter, MeterValue) -> Text
+mkFancyBar (m, val) = "<" +| padBothF 11 ' ' (m ^. name) |+ "> " +| vuBar val |+" " +| padLeftF 20 ' ' (fixedF 2 val) |+ ""
+
+vuBar :: MeterValue -> Text
+vuBar val = mconcat $ replicate n "#" ++ replicate (80-n) "-" where n = max 0 $ floor $ 80 + val
+
+onUserInterrupt UserInterrupt = do
+    showCursor
+    putTextLn "\nUserInterruption"
+onUserInterrupt e = throw e

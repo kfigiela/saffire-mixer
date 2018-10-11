@@ -68,28 +68,35 @@ data RawControl =
     | Spdif2ToOut2
     | Spdif2ToOut4
     -- To confirm
-    | Out1ToSpdifOut1
-    | Out2ToSpdifOut2
+    | Out12ToSpdifOut
 
     -- Mixer 96k
-    | In1ToRecmix96K
-    | In3ToRecmix96K
-    | Spdif1ToRecmix96K
-    | In2ToRecmix96K
-    | In4ToRecmix96K
-    | Spdif2ToRecmix96K
-    | RecmixToOut196K
-    | Pc1ToOut196K
-    | Pc2ToOut196K
-    | RecmixToOut396K
-    | Pc1ToOut396K
-    | Pc2ToOut396K
-    | RecmixToOut296K
-    | Pc1ToOut296K
-    | Pc2ToOut296K
-    | RecmixToOut496K
-    | Pc1ToOut496K
-    | Pc2ToOut496K
+    -- - RecMix
+    | In1ToRecmix_96K
+    | In3ToRecmix_96K
+    | Spdif1ToRecmix_96K
+    | In2ToRecmix_96K
+    | In4ToRecmix_96K
+    | Spdif2ToRecmix_96K
+    -- Out1
+    | RecmixToOut1_96K
+    | Pc1ToOut1_96K
+    | Pc2ToOut1_96K
+    -- Out3
+    | RecmixToOut3_96K
+    | Pc1ToOut3_96K
+    | Pc2ToOut3_96K
+    -- Out2
+    | RecmixToOut2_96K
+    | Pc1ToOut2_96K
+    | Pc2ToOut2_96K
+    -- Out 4
+    | RecmixToOut4_96K
+    | Pc1ToOut4_96K
+    | Pc2ToOut4_96K
+    --
+    | Out12ToSpdifOut_96K
+
     -- Metering
     | MeteringIn1
     | MeteringIn3
@@ -188,30 +195,30 @@ controlsTable =
     , (Spdif2ToOut2,          54)
     , (Spdif2ToOut4,          55)
 
-    , (Out1ToSpdifOut1,       64)
+    , (Out12ToSpdifOut,       64)
 
     -- 96kHz controls
-    , (In1ToRecmix96K,        66)
-    , (In3ToRecmix96K,        67)
-    , (Spdif1ToRecmix96K,     68)
-    , (In2ToRecmix96K,        69)
-    , (In4ToRecmix96K,        70)
-    , (Spdif2ToRecmix96K,     71)
+    , (In1ToRecmix_96K,        66)
+    , (In3ToRecmix_96K,        67)
+    , (Spdif1ToRecmix_96K,     68)
+    , (In2ToRecmix_96K,        69)
+    , (In4ToRecmix_96K,        70)
+    , (Spdif2ToRecmix_96K,     71)
 
-    , (RecmixToOut196K,       72)
-    , (Pc1ToOut196K,          73)
-    , (Pc2ToOut196K,          74)
-    , (RecmixToOut396K,       75)
-    , (Pc1ToOut396K,          76)
-    , (Pc2ToOut396K,          77)
-    , (RecmixToOut296K,       78)
-    , (Pc1ToOut296K,          79)
-    , (Pc2ToOut296K,          80)
-    , (RecmixToOut496K,       81)
-    , (Pc1ToOut496K,          82)
-    , (Pc2ToOut496K,          83)
+    , (RecmixToOut1_96K,       72)
+    , (Pc1ToOut1_96K,          73)
+    , (Pc2ToOut1_96K,          74)
+    , (RecmixToOut3_96K,       75)
+    , (Pc1ToOut3_96K,          76)
+    , (Pc2ToOut3_96K,          77)
+    , (RecmixToOut2_96K,       78)
+    , (Pc1ToOut2_96K,          79)
+    , (Pc2ToOut2_96K,          80)
+    , (RecmixToOut4_96K,       81)
+    , (Pc1ToOut4_96K,          82)
+    , (Pc2ToOut4_96K,          83)
 
-    , (Out2ToSpdifOut2,       84)
+    , (Out12ToSpdifOut_96K,    84)
 
     -- // metering
     , (MeteringIn1,           90)

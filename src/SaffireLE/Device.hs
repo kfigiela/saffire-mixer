@@ -124,9 +124,7 @@ executeSaffireAVC' avcOp devPtr controls =
 
         fwaExecuteAVC devPtr cmdPtr (fromIntegral buffSize) resultPtr resultSizePtr
         resultSize <- peek resultSizePtr
-        print resultSize
         SaffireLEResponse fields <- peekResponse resultPtr
-        print fields
         pure fields
 
 ---
@@ -135,7 +133,7 @@ executeSaffireAVC' avcOp devPtr controls =
 nodeIds :: [FWNodeId]
 nodeIds = FWNodeId <$> [0xffc0, 0xffc2]
 
-withDevice :: FWNodeId -> (FWARef -> IO ()) -> IO ()
+withDevice :: FWNodeId -> (FWARef -> IO a) -> IO a
 withDevice nodeId f = alloca $ \devPtr -> bracket (fwaOpen nodeId devPtr >> peek devPtr) fwaClose f
 
 readSaffire :: FWARef -> [RawControl] -> IO [(RawControl, RawControlValue)]
