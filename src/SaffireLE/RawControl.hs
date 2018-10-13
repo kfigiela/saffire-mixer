@@ -67,7 +67,7 @@ data RawControl =
     | Spdif2ToOut3
     | Spdif2ToOut2
     | Spdif2ToOut4
-    -- To confirm
+    --
     | Out12ToSpdifOut
 
     -- Mixer 96k

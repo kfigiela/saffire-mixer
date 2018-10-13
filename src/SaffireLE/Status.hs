@@ -17,36 +17,81 @@ import           Data.Aeson           (FromJSON, FromJSONKey, FromJSONKeyFunctio
 import           Data.Aeson.Extra     (stripLensPrefix)
 import           Data.Aeson.Types     (toJSONKeyText)
 import           Data.Bits.Lens       (bitAt, byteAt)
-import           Data.Default         (Default, def)
+import           Data.Default.Class   (Default, def)
 import qualified Data.Map             as Map
 import           Fmt                  ((+||), (||+))
 import           GenericEnum          (gEnumFromString, gEnumToString)
 
-import           SaffireLE.Mixer      (InChannel (..), OutChannel (..))
+-- import           SaffireLE.Mixer      (InChannel (..), OutChannel (..))
 import           SaffireLE.RawControl (RawControl (..), RawControlValue)
 import           SaffireLE.Utils      (toBool)
 
-data Meter = InMeter InChannel | OutMeter OutChannel deriving (Show, Eq, Generic, Ord, ToJSON, FromJSON)
-instance ToJSONKey Meter where toJSONKey = toJSONKeyText show
-
-name :: Getter Meter Text
-name = to $ \case
-    InMeter ch -> show ch
-    OutMeter ch -> show ch
+data VUMeter
+    = In1
+    | In3
+    | SpdifIn1
+    | In2
+    | In4
+    | SpdifIn2
+    | Out1
+    | Out3
+    | Out5
+    | SpdifOut7
+    | Out2
+    | Out4
+    | Out6
+    | SpdifOut8
+    | DAC1
+    | DAC3
+    | DAC2
+    | DAC4
+    deriving (Show, Eq, Generic, ToJSON)
 
 type MeterValue = Double
 
+data VUMeters
+    = VUMeters
+    { _in1       :: MeterValue
+    , _in3       :: MeterValue
+    , _spdifIn1  :: MeterValue
+    , _in2       :: MeterValue
+    , _in4       :: MeterValue
+    , _spdifIn2  :: MeterValue
+    , _out1      :: MeterValue
+    , _out3      :: MeterValue
+    , _out5      :: MeterValue
+    , _spdifOut7 :: MeterValue
+    , _out2      :: MeterValue
+    , _out4      :: MeterValue
+    , _out6      :: MeterValue
+    , _spdifOut8 :: MeterValue
+    , _dac1      :: MeterValue
+    , _dac3      :: MeterValue
+    , _dac2      :: MeterValue
+    , _dac4      :: MeterValue
+    } deriving (Show, Eq, Generic, Default)
+
+instance ToJSON VUMeters where toJSON = genericToJSON stripLensPrefix
+makeLenses ''VUMeters
+
+data AudioStatus = Idle | Running deriving (Show, Eq, Generic, ToJSON, Enum)
+instance Default AudioStatus where def = Idle
+
+data ExternalClockStatus
+    = NoSignal
+    | Locked -- ^ not sure
+    | Signal
+    deriving (Show, Eq, Generic, ToJSON, Enum)
+instance Default ExternalClockStatus where def = NoSignal
+
 data DeviceStatus
     = DeviceStatus
-    { _meters       :: Map Meter MeterValue
-    , _extClockLock :: Word32
-    , _audioOn      :: Bool
-    } deriving (Show, Eq, Generic)
+    { _meters       :: VUMeters
+    , _extClockLock :: ExternalClockStatus
+    , _audioOn      :: AudioStatus
+    } deriving (Show, Eq, Generic, Default)
 
-instance Default DeviceStatus where
-    def = DeviceStatus def 0 False
-
-instance ToJSON   DeviceStatus where    toJSON = genericToJSON    stripLensPrefix
+instance ToJSON   DeviceStatus where toJSON = genericToJSON stripLensPrefix
 -- instance FromJSON DeviceStatus where parseJSON = genericParseJSON stripLensPrefix
 
 makeLenses ''DeviceStatus
@@ -64,34 +109,58 @@ dbValue val = 20 * (logBase 10 (fromIntegral val / 0x7fffffff))
 
 meterControls :: [(RawControl, RawControlValue -> DeviceStatus -> DeviceStatus)]
 meterControls =
-    [ (MeteringIn1,    channelMeter (InMeter In1))
-    , (MeteringIn3,    channelMeter (InMeter In3))
-    , (MeteringSpdif1, channelMeter (InMeter SpdifIn1))
-    , (MeteringIn2,    channelMeter (InMeter In2))
-    , (MeteringIn4,    channelMeter (InMeter In4))
-    , (MeteringSpdif2, channelMeter (InMeter SpdifIn2))
-    , (MeteringOut1,   channelMeter (OutMeter Out1))
-    , (MeteringOut3,   channelMeter (OutMeter Out3))
-    , (MeteringOut5,   channelMeter (OutMeter Out5))
-    , (MeteringOut7,   channelMeter (OutMeter SpdifOut7))
-    , (MeteringOut2,   channelMeter (OutMeter Out2))
-    , (MeteringOut4,   channelMeter (OutMeter Out4))
-    , (MeteringOut6,   channelMeter (OutMeter Out6))
-    , (MeteringOut8,   channelMeter (OutMeter SpdifOut8))
-    , (MeteringPc1,    channelMeter (InMeter DAC1))
-    , (MeteringPc3,    channelMeter (InMeter DAC3))
-    , (MeteringPc2,    channelMeter (InMeter DAC2))
-    , (MeteringPc4,    channelMeter (InMeter DAC4))
-    , (ExtClockLock, wordControl extClockLock)
-    , (AudioOn, booleanControl audioOn)
+    [ (MeteringIn1,    channelMeter in1)
+    , (MeteringIn3,    channelMeter in3)
+    , (MeteringSpdif1, channelMeter spdifIn1)
+    , (MeteringIn2,    channelMeter in2)
+    , (MeteringIn4,    channelMeter in4)
+    , (MeteringSpdif2, channelMeter spdifIn2)
+    , (MeteringOut1,   channelMeter out1)
+    , (MeteringOut3,   channelMeter out3)
+    , (MeteringOut5,   channelMeter out5)
+    , (MeteringOut7,   channelMeter spdifOut7)
+    , (MeteringOut2,   channelMeter out2)
+    , (MeteringOut4,   channelMeter out4)
+    , (MeteringOut6,   channelMeter out6)
+    , (MeteringOut8,   channelMeter spdifOut8)
+    , (MeteringPc1,    channelMeter dac1)
+    , (MeteringPc3,    channelMeter dac3)
+    , (MeteringPc2,    channelMeter dac2)
+    , (MeteringPc4,    channelMeter dac4)
+    , (ExtClockLock,   enumControl extClockLock)
+    , (AudioOn,        enumControl audioOn)
     ]
   where
     booleanControl :: Lens' DeviceStatus Bool -> (RawControlValue -> DeviceStatus -> DeviceStatus)
     booleanControl l value = l .~ toBool value
     wordControl :: Lens' DeviceStatus Word32 -> (RawControlValue -> DeviceStatus -> DeviceStatus)
     wordControl l value = l .~  value
-    channelMeter :: Meter -> (RawControlValue -> DeviceStatus -> DeviceStatus)
-    channelMeter meter value = meters . at meter ?~ dbValue value
+    enumControl :: Enum a => Lens' DeviceStatus a -> (RawControlValue -> DeviceStatus -> DeviceStatus)
+    enumControl l value = l .~ toEnum (fromIntegral value)
+    channelMeter :: Lens' VUMeters MeterValue -> (RawControlValue -> DeviceStatus -> DeviceStatus)
+    channelMeter meter value = meters . meter .~ dbValue value
 
 allMeters :: [RawControl]
 allMeters = fst <$> meterControls
+
+vuMeters :: [(VUMeter, VUMeters -> MeterValue)]
+vuMeters =
+    [ (In1,       view in1)
+    , (In2,       view in2)
+    , (In3,       view in3)
+    , (In4,       view in4)
+    , (SpdifIn1,  view spdifIn1)
+    , (SpdifIn2,  view spdifIn2)
+    , (Out1,      view out1)
+    , (Out3,      view out3)
+    , (Out5,      view out5)
+    , (Out2,      view out2)
+    , (Out4,      view out4)
+    , (Out6,      view out6)
+    , (SpdifOut7, view spdifOut7)
+    , (SpdifOut8, view spdifOut8)
+    , (DAC1,      view dac1)
+    , (DAC3,      view dac3)
+    , (DAC2,      view dac2)
+    , (DAC4,      view dac4)
+    ]

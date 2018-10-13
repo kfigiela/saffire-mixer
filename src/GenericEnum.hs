@@ -20,7 +20,6 @@ import Text.Read
 import GHC.Generics
 import Generics.Deriving
 import Control.Lens
-import Data.Default as DD
 
 
 gEnumToString :: (ConNames (Rep a), Generic a) => a -> String
