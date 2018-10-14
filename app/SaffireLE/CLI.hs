@@ -25,10 +25,11 @@ import           SaffireLE.Device
 import           SaffireLE.Mixer
 import qualified SaffireLE.RawControl  as Raw
 import           SaffireLE.Status
+import           SaffireLE.StereoMixer (toStereoMixer)
 
 data Command
   = LoadSettings { _filename :: FilePath }
-  | DumpSettings { _filename :: FilePath }
+  | DumpSettings { _mayFilename :: Maybe FilePath }
   | SaveSettings
   | Status
   | Meter
@@ -38,7 +39,7 @@ loadSettings :: Parser Command
 loadSettings = LoadSettings <$> argument str (metavar "FILE")
 
 dumpSettings :: Parser Command
-dumpSettings = DumpSettings <$> argument str (metavar "FILE")
+dumpSettings = DumpSettings <$> optional (argument str (metavar "FILE"))
 
 
 cli :: Parser Command
@@ -72,7 +73,9 @@ runCommands cmd = do
                     rawData <- readSaffire devPtr allControls
                     let mixer' = updateMixerState def rawData
                         yaml = encodePretty (defConfig & setConfCompare compare) mixer'
-                    void $ BS.writeFile file yaml
+                        stereoMixer = toStereoMixer (mixer' ^. lowResMixer)
+                    putTextLn $ decodeUtf8 @Text @ByteString $ encodePretty (defConfig & setConfCompare compare) stereoMixer
+                    whenJust file $ \file -> void $ BS.writeFile file yaml
                 SaveSettings -> void $ writeSaffire devPtr [(Raw.SaveSettings, 1)]
                 Status -> do
                     rawData <- readSaffire devPtr allMeters

@@ -88,12 +88,11 @@ data LowResMix
     , _in4          :: MixValue
     , _spdif1       :: MixValue
     , _spdif2       :: MixValue
-    , _out12ToSpdif :: Bool
     } deriving (Show, Eq, Generic)
 
 instance ToJSON   LowResMix where    toJSON = genericToJSON    stripLensPrefix
 instance FromJSON LowResMix where parseJSON = genericParseJSON stripLensPrefix
-instance Default  LowResMix where def = LowResMix def def def def def def def def def def def def def def False
+instance Default  LowResMix where def = LowResMix def def def def def def def def def def def def def def
 
 
 -- | 88.2 kHz and 96 kHz sample rate mixers
@@ -155,9 +154,9 @@ makeFieldsNoPrefix ''HiResLMix
 makeFieldsNoPrefix ''HiResRMix
 makeFieldsNoPrefix ''RecMix
 
-data MixerState
+data MixerState' a
     = MixerState
-    { _lowResMixer      :: LowResMixer
+    { _lowResMixer      :: a
     , _highResMixer     :: HiResMixer
     , _in3Gain          :: Bool
     , _in4Gain          :: Bool
@@ -168,10 +167,12 @@ data MixerState
     , _spdifTransparent :: Bool
     } deriving (Show, Eq, Generic)
 
-instance ToJSON   MixerState where    toJSON = genericToJSON    stripLensPrefix
-instance FromJSON MixerState where parseJSON = genericParseJSON stripLensPrefix
+type MixerState = MixerState' LowResMixer
 
-instance Default MixerState where
+instance ToJSON a => ToJSON   (MixerState' a) where    toJSON = genericToJSON    stripLensPrefix
+instance FromJSON a => FromJSON (MixerState' a) where parseJSON = genericParseJSON stripLensPrefix
+
+instance Default a => Default (MixerState' a) where
     def = MixerState
         { _lowResMixer = def
         , _highResMixer = def
@@ -184,7 +185,7 @@ instance Default MixerState where
         , _spdifTransparent = False
         }
 
-makeLenses ''MixerState
+makeLenses ''MixerState'
 makeLenses ''OutOpts
 
 updateMixerState :: MixerState -> [(RawControl, RawControlValue)] -> MixerState
