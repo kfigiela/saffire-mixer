@@ -41,7 +41,6 @@ loadSettings = LoadSettings <$> argument str (metavar "FILE")
 dumpSettings :: Parser Command
 dumpSettings = DumpSettings <$> optional (argument str (metavar "FILE"))
 
-
 cli :: Parser Command
 cli = subparser
    (  command "load"  (info loadSettings (progDesc "Load settings from file to device"))

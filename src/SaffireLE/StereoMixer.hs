@@ -47,11 +47,13 @@ data StereoMix
     , _stereoIn12          :: StereoMixValue
     , _stereoIn34          :: StereoMixValue
     , _stereoSpdif12       :: StereoMixValue
+    , _inputMix            :: Double
+    , _dacMix              :: Double
     } deriving (Show, Eq, Generic)
 
 instance ToJSON   StereoMix where    toJSON = genericToJSON    stripLensPrefix
 instance FromJSON StereoMix where parseJSON = genericParseJSON stripLensPrefix
-instance Default StereoMix where def = StereoMix defStereoPair defStereoPair defStereoPair defStereoPair defMonoPair defMonoPair defStereoPair
+instance Default StereoMix where def = StereoMix defStereoPair defStereoPair defStereoPair defStereoPair defMonoPair defMonoPair defStereoPair 1.0 1.0
 
 data ChannelMix
     = ChannelMix
@@ -98,8 +100,8 @@ balanceToVolume bal = (l, r) where
     l = max 0 $ min 1 (1 - bal)
     r = max 0 $ min 1 (1 + bal)
 
-channelMixToVolume :: ChannelMix -> (Double, Double)
-channelMixToVolume (ChannelMix vol bal) = (vol * l, vol * r) where (l, r) = balanceToVolume bal
+channelMixToVolume :: Double -> ChannelMix -> (Double, Double)
+channelMixToVolume coeff (ChannelMix vol bal) = (vol * l * coeff, vol * r * coeff) where (l, r) = balanceToVolume bal
 
 volumeToChannelMix :: (Double, Double) -> ChannelMix
 volumeToChannelMix (l, r) = ChannelMix vol bal where
@@ -113,8 +115,8 @@ channelPairToStereoMix (ch1, ch2) = MonoPair ch1 ch2
 fromFullMix :: ((Double, Double), (Double, Double)) -> StereoMixValue
 fromFullMix (l, r) = channelPairToStereoMix (volumeToChannelMix l, volumeToChannelMix r)
 
-fullMix :: StereoMixValue -> ((Double, Double), (Double, Double))
-fullMix mix = (channelMixToVolume ch1Mix, channelMixToVolume ch2Mix) where (ch1Mix, ch2Mix) = toChannelMix mix
+fullMix :: Double -> StereoMixValue -> ((Double, Double), (Double, Double))
+fullMix coeff mix = (channelMixToVolume coeff ch1Mix, channelMixToVolume coeff ch2Mix) where (ch1Mix, ch2Mix) = toChannelMix mix
 
 stereoMixToLowResMix :: StereoMix -> (LowResMix, LowResMix)
 stereoMixToLowResMix mix
@@ -153,13 +155,13 @@ stereoMixToLowResMix mix
         , _spdif2       = rspdif2
         }
 
-    ((ldac1, rdac1), (ldac2, rdac2)) = fullMix (mix ^. stereoDAC12)
-    ((ldac3, rdac3), (ldac4, rdac4)) = fullMix (mix ^. stereoDAC34)
-    ((ldac5, rdac5), (ldac6, rdac6)) = fullMix (mix ^. stereoDAC56)
-    ((ldac7, rdac7), (ldac8, rdac8)) = fullMix (mix ^. stereoDAC78)
-    ((lin1,  rin1),  (lin2,  rin2))  = fullMix (mix ^. stereoIn12)
-    ((lin3,  rin3),  (lin4,  rin4))  = fullMix (mix ^. stereoIn34)
-    ((lspdif1, rspdif1),  (lspdif2,  rspdif2))  = fullMix (mix ^. stereoSpdif12)
+    ((ldac1, rdac1), (ldac2, rdac2)) = fullMix (mix ^. dacMix) (mix ^. stereoDAC12)
+    ((ldac3, rdac3), (ldac4, rdac4)) = fullMix (mix ^. dacMix) (mix ^. stereoDAC34)
+    ((ldac5, rdac5), (ldac6, rdac6)) = fullMix (mix ^. dacMix) (mix ^. stereoDAC56)
+    ((ldac7, rdac7), (ldac8, rdac8)) = fullMix (mix ^. dacMix) (mix ^. stereoDAC78)
+    ((lin1,  rin1),  (lin2,  rin2))  = fullMix (mix ^. inputMix) (mix ^. stereoIn12)
+    ((lin3,  rin3),  (lin4,  rin4))  = fullMix (mix ^. inputMix) (mix ^. stereoIn34)
+    ((lspdif1, rspdif1),  (lspdif2,  rspdif2))  = fullMix (mix ^. inputMix) (mix ^. stereoSpdif12)
 
 
 lowResMixToStereo :: (LowResMix, LowResMix) -> StereoMix
@@ -205,6 +207,8 @@ lowResMixToStereo (l, r) = mix
         , _stereoIn12 = fromFullMix ((lin1,  rin1),  (lin2,  rin2))
         , _stereoIn34 = fromFullMix ((lin3,  rin3),  (lin4,  rin4))
         , _stereoSpdif12 = fromFullMix ((lspdif1, rspdif1),  (lspdif2,  rspdif2))
+        , _inputMix = 1.0
+        , _dacMix = 1.0
         }
 
 toStereoMixer :: LowResMixer -> StereoMixer
@@ -214,12 +218,3 @@ toStereoMixer mix =
     , _stereo2 = lowResMixToStereo (mix ^. Mixer.out3, mix ^. Mixer.out4)
     , _out12ToSpdif = mix ^. Mixer.out12ToSpdif
     }
-
-
-
-
-
-
--- (out12DacMix, out12InMix)
-
--- out1 . dac1 .~ out12DacMix * (stereo ^. stereoDac1)
