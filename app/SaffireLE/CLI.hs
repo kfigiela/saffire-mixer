@@ -25,26 +25,26 @@ import           SaffireLE.Device
 import           SaffireLE.Mixer
 import qualified SaffireLE.RawControl  as Raw
 import           SaffireLE.Status
-import           SaffireLE.StereoMixer (toStereoMixer)
+import           SaffireLE.Mixer.Stereo (toStereoMixer)
 
 data Command
   = LoadSettings { _filename :: FilePath }
-  | DumpSettings { _mayFilename :: Maybe FilePath }
+  | DumpSettings { _filename :: FilePath }
   | SaveSettings
   | Status
   | Meter
   deriving (Eq, Show)
 
 loadSettings :: Parser Command
-loadSettings = LoadSettings <$> argument str (metavar "FILE")
+loadSettings = LoadSettings <$> strOption (long "file" <> short 'f' <> help "File where mixer state is stored" <> metavar "FILE" <> value "$HOME/.saffire-mixer.yaml" <> showDefault)
 
 dumpSettings :: Parser Command
-dumpSettings = DumpSettings <$> optional (argument str (metavar "FILE"))
+dumpSettings = DumpSettings <$> strOption (long "file" <> short 'f' <> help "File where mixer state is stored" <> metavar "FILE" <> value "$HOME/.saffire-mixer.yaml" <> showDefault)
 
 cli :: Parser Command
 cli = subparser
-   (  command "load"  (info loadSettings (progDesc "Load settings from file to device"))
-   <> command "dump"  (info dumpSettings (progDesc "Dump settings from device to file"))
+   (  command "load"  (info (loadSettings <**> helper) (progDesc "Load settings from file to device"))
+   <> command "dump"  (info (dumpSettings <**> helper) (progDesc "Dump settings from device to file"))
    <> command "save"  (info (pure SaveSettings) (progDesc "Store settings in a persistent device memory. Causes brief audio interruption."))
    <> command "status" (info (pure Status) (progDesc "Display device status incl. metering values"))
    <> command "meter" (info (pure Meter) (progDesc "Display bar meters"))
@@ -74,7 +74,7 @@ runCommands cmd = do
                         yaml = encodePretty (defConfig & setConfCompare compare) mixer'
                         stereoMixer = toStereoMixer (mixer' ^. lowResMixer)
                     putTextLn $ decodeUtf8 @Text @ByteString $ encodePretty (defConfig & setConfCompare compare) stereoMixer
-                    whenJust file $ \file -> void $ BS.writeFile file yaml
+                    void $ BS.writeFile file yaml
                 SaveSettings -> void $ writeSaffire devPtr [(Raw.SaveSettings, 1)]
                 Status -> do
                     rawData <- readSaffire devPtr allMeters
