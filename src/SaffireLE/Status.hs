@@ -101,7 +101,7 @@ updateDeviceStatus = foldl updateDeviceStatus'
 
 updateDeviceStatus' :: DeviceStatus -> (RawControl, RawControlValue) -> DeviceStatus
 updateDeviceStatus' state (control, value) = f value state where
-    f = fromMaybe (const identity) $ meterControlsMap ^. at control
+    f = fromMaybe (const id) $ meterControlsMap ^. at control
     meterControlsMap = Map.fromList meterControls
 
 dbValue :: Word32 -> MeterValue

@@ -98,7 +98,7 @@ updateMixerState = foldl updateMixerState'
 
 updateMixerState' :: MixerState -> (RawControl, RawControlValue) -> MixerState
 updateMixerState' state (control, value) = f value state where
-    f = maybe (const identity) fst $ mixerControlsMap ^. at control
+    f = maybe (const id) fst $ mixerControlsMap ^. at control
     mixerControlsMap = Map.fromList mixerControls
 
 hardwarizeMixerState :: MixerState -> [(RawControl, RawControlValue)]
