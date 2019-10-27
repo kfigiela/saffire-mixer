@@ -1,81 +1,80 @@
-name:                saffire-mixer
-version:             0.1.0.0
-github:              "kfigiela/saffire-mixer"
-license:             BSD3
-author:              "Kamil Figiela"
-maintainer:          "kamil.figiela@gmail.com"
-copyright:           "2018 Kamil Figiela"
-
+name: saffire-mixer
+version: 0.1.0.0
+github: kfigiela/saffire-mixer
+license: BSD3
+author: Kamil Figiela
+maintainer: kamil.figiela@gmail.com
+copyright: 2018 Kamil Figiela
 extra-source-files:
-- README.md
-- ChangeLog.md
-
-# Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
-
-# To avoid duplicated efforts in documentation and dealing with the
-# complications of embedding Haddock markup inside cabal files, it is
-# common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/saffire-mixer#readme>
-
+  - README.md
+  - ChangeLog.md
+description: >-
+  Please see the README on GitHub at
+  <https://github.com/githubuser/saffire-mixer#readme>
 dependencies:
-- base >= 4.7 && < 5
-- containers
-- universum
-- fmt
-- fmt-terminal-colors
-- memory
-- mtl
-- aeson
-- aeson-pretty
-- yaml
-- data-default-class
-- lens
-- split
-- text
-- generic-deriving
-- optparse-applicative
-- bytestring
-- ansi-terminal
-- terminal-size
-
-
+  - base >= 4.7 && < 5
+  - containers
+  - universum
+  - fmt
+  - fmt-terminal-colors
+  - memory
+  - mtl
+  - aeson
+  - aeson-pretty
+  - yaml
+  - data-default-class
+  - lens
+  - split
+  - text
+  - generic-deriving
+  - optparse-applicative
+  - bytestring
+  - ansi-terminal
+  - terminal-size
+  - warp
+  - wai
+  - http-types
+  - wai-websockets
+  - websockets
+  - stm
+  - lifted-base
+  - monad-loops
+  - directory
 default-extensions:
-- NoImplicitPrelude
-- OverloadedStrings
-- ScopedTypeVariables
-- DeriveAnyClass
-- DeriveGeneric
-- DuplicateRecordFields
-- LambdaCase
-- ViewPatterns
-- ScopedTypeVariables
-- TupleSections
-
+  - NoImplicitPrelude
+  - OverloadedStrings
+  - ScopedTypeVariables
+  - DeriveAnyClass
+  - DeriveGeneric
+  - DerivingStrategies
+  - DerivingVia
+  - DuplicateRecordFields
+  - LambdaCase
+  - ViewPatterns
+  - ScopedTypeVariables
+  - TupleSections
+  - NumericUnderscores
 library:
   source-dirs: src
-
 executables:
   saffire-mixer:
-    main:                Main.hs
-    source-dirs:         app
+    main: Main.hs
+    source-dirs: app
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+      - "-threaded"
+      - "-rtsopts"
+      - "-with-rtsopts=-N"
     frameworks:
-     - FWAUserLib
+      - FWAUserLib
     dependencies:
-    - saffire-mixer
-
+      - saffire-mixer
 tests:
   saffire-mixer-test:
-    main:                Spec.hs
-    source-dirs:         test
+    main: Spec.hs
+    source-dirs: test
     ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
+      - "-threaded"
+      - "-rtsopts"
+      - "-with-rtsopts=-N"
     dependencies:
-    - saffire-mixer
+      - saffire-mixer

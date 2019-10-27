@@ -2,7 +2,6 @@
 {-# LANGUAGE DuplicateRecordFields  #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE LambdaCase             #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE RankNTypes             #-}
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE TypeOperators          #-}
@@ -14,10 +13,9 @@ import           Universum
 
 import           Control.Lens         (at, non, (?~))
 import           Control.Lens.TH      (makeFieldsNoPrefix, makeLenses)
-import           Data.Aeson           (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser),
-                                       ToJSON, ToJSONKey, fromJSONKey,
-                                       genericParseJSON, genericToJSON,
-                                       parseJSON, toJSON, toJSONKey)
+import           Data.Aeson           (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON,
+                                       ToJSONKey, fromJSONKey, genericParseJSON, genericToJSON, parseJSON, toJSON,
+                                       toJSONKey)
 import           Data.Aeson.Extra     (stripLensPrefix)
 import           Data.Aeson.Types     (toJSONKeyText)
 import           Data.Bits.Lens       (bitAt, byteAt)

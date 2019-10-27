@@ -10,6 +10,7 @@ module SaffireLE.Device
     , withDevice
     , getGUID
     , FWNodeId (..)
+    , FWARef
     , DeviceError (..)
     ) where
 
@@ -18,12 +19,10 @@ import           Universum
 import           Control.Exception    (throw)
 import           Data.List.Split      (chunksOf)
 import           Data.Memory.Endian   (BE, fromBE, toBE)
-import           Foreign              (alloca, allocaBytes, castPtr, peek,
-                                       peekArray, plusPtr, poke, pokeArray)
+import           Foreign              (alloca, allocaBytes, castPtr, peek, peekArray, plusPtr, poke, pokeArray)
 import           Foreign.C.Types      (CInt (..), CUInt (..), CULong (..))
 
-import           SaffireLE.RawControl (RawControl (..), RawControlValue,
-                                       fromRawControlEnum, toRawControlEnum)
+import           SaffireLE.RawControl (RawControl (..), RawControlValue, fromRawControlEnum, toRawControlEnum)
 
 data FWADev
 type FWARef = Ptr FWADev
@@ -76,8 +75,8 @@ data SaffireLEResponse =
 
 arrayToEntry :: [BE Word32] -> [(RawControl, RawControlValue)]
 arrayToEntry (controlId:value:tail) = (toRawControlEnum $ fromBE controlId, fromBE value):(arrayToEntry tail)
-arrayToEntry [_] = error "odd number of values"
-arrayToEntry [] = []
+arrayToEntry [_]                    = error "odd number of values"
+arrayToEntry []                     = []
 
 entryToRow :: (RawControl, RawControlValue) -> [BE Word32]
 entryToRow (control, value) = [toBE $ fromRawControlEnum control, toBE value]

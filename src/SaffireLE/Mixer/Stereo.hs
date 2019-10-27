@@ -3,7 +3,6 @@
 {-# LANGUAGE DuplicateRecordFields  #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE LambdaCase             #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE RankNTypes             #-}
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE TypeOperators          #-}
@@ -13,15 +12,15 @@ module SaffireLE.Mixer.Stereo where
 
 import           Universum
 
-import           Control.Lens.TH    (makeFieldsNoPrefix, makeLenses)
-import           Data.Aeson         (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON,
-                                     ToJSONKey, fromJSONKey, genericParseJSON, genericToJSON, parseJSON, toJSON,
-                                     toJSONKey)
-import           Data.Aeson.Extra   (stripLensPrefix)
-import           Data.Default.Class (Default, def)
+import           Control.Lens.TH        (makeFieldsNoPrefix, makeLenses)
+import           Data.Aeson             (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON,
+                                         ToJSONKey, fromJSONKey, genericParseJSON, genericToJSON, parseJSON, toJSON,
+                                         toJSONKey)
+import           Data.Aeson.Extra       (StripLensPrefix(..))
+import           Data.Default.Class     (Default, def)
 
-import           SaffireLE.Mixer.Matrix    (Mix (..), MatrixMixer (..))
-import qualified SaffireLE.Mixer.Matrix    as Mixer
+import           SaffireLE.Mixer.Matrix (MatrixMixer (..), Mix (..))
+import qualified SaffireLE.Mixer.Matrix as Mixer
 
 type MixValue = Double
 
@@ -30,11 +29,9 @@ data StereoMixer
     { _stereo1      :: StereoMix
     , _stereo2      :: StereoMix
     , _out12ToSpdif :: Bool
-    } deriving (Show, Eq, Generic)
-
-
-instance ToJSON   StereoMixer where    toJSON = genericToJSON    stripLensPrefix
-instance FromJSON StereoMixer where parseJSON = genericParseJSON stripLensPrefix
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving (ToJSON, FromJSON) via (StripLensPrefix StereoMixer)
 instance Default  StereoMixer where def = StereoMixer def def False
 
 data StereoMix
@@ -48,10 +45,10 @@ data StereoMix
     , _stereoSpdif12 :: StereoMixValue
     , _inputMix      :: Double
     , _dacMix        :: Double
-    } deriving (Show, Eq, Generic)
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving (ToJSON, FromJSON) via (StripLensPrefix StereoMix)
 
-instance ToJSON   StereoMix where    toJSON = genericToJSON    stripLensPrefix
-instance FromJSON StereoMix where parseJSON = genericParseJSON stripLensPrefix
 instance Default StereoMix where def = StereoMix defStereoPair defStereoPair defStereoPair defStereoPair defMonoPair defMonoPair defStereoPair 1.0 1.0
 
 -- | Represents mix of stereo channel
@@ -59,30 +56,30 @@ data ChannelMix
     = ChannelMix
     { _volume  :: MixValue
     , _balance :: MixValue
-    } deriving (Show, Eq, Generic)
+    , _enabled :: Bool
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving (ToJSON, FromJSON) via (StripLensPrefix ChannelMix)
 
-instance ToJSON   ChannelMix where    toJSON = genericToJSON    stripLensPrefix
-instance FromJSON ChannelMix where parseJSON = genericParseJSON stripLensPrefix
-
+instance Default ChannelMix where def = ChannelMix 1.0 0.0 True
 
 data StereoMixValue
     = StereoPair
-    { _ch12Volume :: MixValue
+    { _ch12Volume :: ChannelMix
     }
     | MonoPair
     { _ch1Volume :: ChannelMix
     , _ch2Volume :: ChannelMix
-    } deriving (Show, Eq, Generic)
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving (ToJSON, FromJSON) via (StripLensPrefix StereoMixValue)
 
 
 defStereoPair :: StereoMixValue
-defStereoPair = StereoPair 1.0
+defStereoPair = StereoPair def
 
 defMonoPair :: StereoMixValue
-defMonoPair = MonoPair (ChannelMix 1.0 0.0) (ChannelMix 1.0 0.0)
-
-instance ToJSON   StereoMixValue where    toJSON = genericToJSON    stripLensPrefix
-instance FromJSON StereoMixValue where parseJSON = genericParseJSON stripLensPrefix
+defMonoPair = MonoPair def def
 
 makeFieldsNoPrefix ''StereoMixer
 makeFieldsNoPrefix ''StereoMix
@@ -90,8 +87,10 @@ makeFieldsNoPrefix ''ChannelMix
 makeFieldsNoPrefix ''StereoMixValue
 
 toChannelMix :: StereoMixValue -> (ChannelMix, ChannelMix)
-toChannelMix (StereoPair volume) = (ChannelMix volume (-1.0), ChannelMix volume 1.0)
-toChannelMix (MonoPair ch1 ch2)  = (ch1, ch2)
+toChannelMix (StereoPair (ChannelMix volume balance enabled)) = (ChannelMix (l * volume) (-1.0) enabled , ChannelMix (r * volume) 1.0 enabled)
+    where
+    (l, r) = balanceToVolume balance
+toChannelMix (MonoPair ch1 ch2)          = (ch1, ch2)
 
 balanceToVolume :: Double -> (Double, Double)
 balanceToVolume bal = (l, r) where
@@ -99,16 +98,19 @@ balanceToVolume bal = (l, r) where
     r = max 0 $ min 1 (1 + bal)
 
 channelMixToVolume :: Double -> ChannelMix -> (Double, Double)
-channelMixToVolume coeff (ChannelMix vol bal) = (vol * l * coeff, vol * r * coeff) where (l, r) = balanceToVolume bal
+channelMixToVolume coeff (ChannelMix vol bal enabled) = (vol * l * coeff * enabled', vol * r * coeff * enabled')
+    where
+    (l, r) = balanceToVolume bal
+    enabled' = if enabled then 1.0 else 0.0
 
 volumeToChannelMix :: (Double, Double) -> ChannelMix
-volumeToChannelMix (l, r) = ChannelMix vol bal where
+volumeToChannelMix (l, r) = ChannelMix vol bal True where
     vol = max l r
     bal = if vol == 0 then 0 else (r - l) / vol
 
 channelPairToStereoMix :: (ChannelMix, ChannelMix) -> StereoMixValue
-channelPairToStereoMix (ChannelMix v1 (-1.0), ChannelMix v2 (1.0)) | v1 == v2 = StereoPair v1
-channelPairToStereoMix (ch1, ch2)                                             = MonoPair ch1 ch2
+channelPairToStereoMix (ChannelMix v1 (-1.0) enabled1, ChannelMix v2 1.0 enabled2) | v1 == v2 && enabled1 == enabled2 = StereoPair (ChannelMix v1 0.0 enabled1)
+channelPairToStereoMix (ch1, ch2) = MonoPair ch1 ch2
 
 fromFullMix :: ((Double, Double), (Double, Double)) -> StereoMixValue
 fromFullMix (l, r) = channelPairToStereoMix (volumeToChannelMix l, volumeToChannelMix r)
@@ -216,3 +218,16 @@ toStereoMixer mix =
     , _stereo2 = lowResMixToStereo (mix ^. Mixer.out3, mix ^. Mixer.out4)
     , _out12ToSpdif = mix ^. Mixer.out12ToSpdif
     }
+
+fromSteroMixer :: StereoMixer -> MatrixMixer
+fromSteroMixer mix =
+    MatrixMixer
+    { Mixer._out1 = out1
+    , Mixer._out2 = out2
+    , Mixer._out3 = out3
+    , Mixer._out4 = out4
+    , Mixer._out12ToSpdif = mix ^. out12ToSpdif
+    }
+    where
+    (out1, out2) = stereoMixToLowResMix $ mix ^. stereo1
+    (out3, out4) = stereoMixToLowResMix $ mix ^. stereo2

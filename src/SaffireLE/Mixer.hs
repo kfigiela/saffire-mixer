@@ -12,24 +12,23 @@ module SaffireLE.Mixer where
 
 import           Universum
 
-import           Control.Lens         (at, non, (?~))
-import           Control.Lens.TH      (makeFieldsNoPrefix, makeLenses)
-import           Data.Aeson           (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser),
-                                       ToJSON, ToJSONKey, fromJSONKey,
-                                       genericParseJSON, genericToJSON,
-                                       parseJSON, toJSON, toJSONKey)
-import           Data.Aeson.Extra     (stripLensPrefix)
-import           Data.Aeson.Types     (toJSONKeyText)
-import           Data.Bits.Lens       (bitAt, byteAt)
-import           Data.Default.Class   (Default, def)
-import qualified Data.Map             as Map
-import           Fmt                  ((+||), (||+))
-import           GenericEnum          (gEnumFromString, gEnumToString)
+import           Control.Lens           (at, non, (?~))
+import           Control.Lens.TH        (makeFieldsNoPrefix, makeLenses)
+import           Data.Aeson             (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON,
+                                         ToJSONKey, fromJSONKey, genericParseJSON, genericToJSON, parseJSON, toJSON,
+                                         toJSONKey)
+import           Data.Aeson.Extra       (stripLensPrefix)
+import           Data.Aeson.Types       (toJSONKeyText)
+import           Data.Bits.Lens         (bitAt, byteAt)
+import           Data.Default.Class     (Default, def)
+import qualified Data.Map               as Map
+import           Fmt                    ((+||), (||+))
+import           GenericEnum            (gEnumFromString, gEnumToString)
 
-import           SaffireLE.RawControl (RawControl (..), RawControlValue)
-import           SaffireLE.Utils      (toBool)
-import qualified SaffireLE.Mixer.Matrix as L
 import qualified SaffireLE.Mixer.HiRes  as H
+import qualified SaffireLE.Mixer.Matrix as L
+import           SaffireLE.RawControl   (RawControl (..), RawControlValue)
+import           SaffireLE.Utils        (toBool)
 
 type MixValue = Double
 
@@ -53,6 +52,7 @@ fromOutOpts (OutOpts mute attenuation) =
     where
         attenuation' :: Word8
         attenuation' = floor $ attenuation * 0x7f
+
 toOutOpts :: Word32 -> OutOpts
 toOutOpts value = OutOpts
     { _mute        = value ^. bitAt 25
