@@ -1,42 +1,42 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE TemplateHaskell #-}
 module SaffireLE.Server where
 
-import           Universum hiding (State)
+import           Universum                      hiding (State)
 
 import           Data.Default.Class             (def)
 
 import           Control.Concurrent             (forkIO, threadDelay)
+import           Control.Concurrent.STM.TChan
+import           Control.Exception
+import           Control.Lens.TH                (makeLenses)
+import           Control.Monad.Loops            (iterateM_, whileJust_)
+import           Data.Aeson                     (FromJSON, ToJSON)
 import qualified Data.Aeson                     as A
-import           Data.Aeson                     (ToJSON, FromJSON)
-import           Data.Aeson.Extra (StripLensPrefix(..))
+import           Data.Aeson.Extra               (StripLensPrefix (..))
+import qualified Data.ByteString.Char8          as BS
+import qualified Data.Yaml                      as Y
+import qualified Data.Yaml.Pretty               as Y
+import           Fmt
 import           Network.HTTP.Types             (status200, status400)
 import           Network.Wai
 import qualified Network.Wai.Handler.Warp       as Warp (run)
 import           Network.Wai.Handler.WebSockets
 import           Network.WebSockets
-import Control.Lens.TH (makeLenses)
-import           Control.Concurrent.STM.TChan
-import           Control.Exception
-import           Control.Monad.Loops            (whileJust_, iterateM_)
 import           SaffireLE.Device
 import           SaffireLE.Mixer
-import qualified SaffireLE.Mixer as M
-import           SaffireLE.Mixer.Matrix (MatrixMixer)
-import qualified SaffireLE.Mixer.Matrix as MM
-import qualified SaffireLE.Mixer.Stereo as SM
-import qualified SaffireLE.Mixer.HiRes as HM
+import qualified SaffireLE.Mixer                as M
+import qualified SaffireLE.Mixer.HiRes          as HM
+import           SaffireLE.Mixer.Matrix         (MatrixMixer)
+import qualified SaffireLE.Mixer.Matrix         as MM
+import qualified SaffireLE.Mixer.Stereo         as SM
 import           SaffireLE.Status
-import qualified Data.Yaml as Y
-import qualified Data.Yaml.Pretty as Y
-import qualified Data.ByteString.Char8        as BS
-import Fmt
-import System.Directory (getAppUserDataDirectory, createDirectoryIfMissing)
+import           System.Directory               (createDirectoryIfMissing, getAppUserDataDirectory)
 
 
 data State =
     State
-    { _mixer :: M.MixerState
+    { _mixer  :: M.MixerState
     , _stereo :: SM.StereoMixer
     }
     deriving stock (Generic, Show)

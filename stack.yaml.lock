@@ -18,6 +18,41 @@ packages:
       sha256: 7fff01955f60ed787c05503e3a85c170933856921495512f276b4096a0d4d0d6
   original:
     hackage: fmt-terminal-colors-0.1.0.0
+- completed:
+    hackage: smuggler-0.1.0@sha256:2d70cdb59ea8df9ba0c97d3c9c0c6603c4bb82323061d1066ec60544518e73d1,4031
+    pantry-tree:
+      size: 1481
+      sha256: cbe47c1459107031620a712d300efaea3b4cbc2498b46afeefde084df055225e
+  original:
+    hackage: smuggler-0.1.0@sha256:2d70cdb59ea8df9ba0c97d3c9c0c6603c4bb82323061d1066ec60544518e73d1,4031
+- completed:
+    hackage: ghc-exactprint-0.5.8.2@sha256:b078e02ce263db6214f8418c8b6f6be1c8a7ca1499bb2f8936b91b5ed210faa5,7901
+    pantry-tree:
+      size: 83871
+      sha256: 1dc1dc7f036dfb8e7642deaeb2845c62731085abc29a1494c22cd6b1b5a18d16
+  original:
+    hackage: ghc-exactprint-0.5.8.2@sha256:b078e02ce263db6214f8418c8b6f6be1c8a7ca1499bb2f8936b91b5ed210faa5,7901
+- completed:
+    cabal-file:
+      size: 1144
+      sha256: c091f3b6de63c9913ba4d5a493f495c97d4ccc0e2f0d1d16c5828c43425138a2
+    name: hash-store
+    version: 0.1.0
+    git: https://github.com/kfigiela/hash-store.git
+    pantry-tree:
+      size: 417
+      sha256: 956ab33469b8cb2e8d0e1f9f0b626d7caccc81777b6078b00c6e13ee04968df4
+    commit: b6da6a4a2a2214e11ad19775488b2099f51d106c
+  original:
+    git: https://github.com/kfigiela/hash-store.git
+    commit: b6da6a4a2a2214e11ad19775488b2099f51d106c
+- completed:
+    hackage: base58-bytestring-0.1.0@sha256:a1da72ee89d5450bac1c792d9fcbe95ed7154ab7246f2172b57bd4fd9b5eab79,1913
+    pantry-tree:
+      size: 419
+      sha256: 053784f8edef6433518c873a7c502dc75348f812e2384e1306f90467ea54f40b
+  original:
+    hackage: base58-bytestring-0.1.0@sha256:a1da72ee89d5450bac1c792d9fcbe95ed7154ab7246f2172b57bd4fd9b5eab79,1913
 snapshots:
 - completed:
     size: 545658

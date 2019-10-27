@@ -11,21 +11,10 @@ module SaffireLE.Mixer.HiRes where
 
 import           Universum
 
-import           Control.Lens         (at, non, (?~))
-import           Control.Lens.TH      (makeFieldsNoPrefix, makeLenses)
-import           Data.Aeson           (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON,
-                                       ToJSONKey, fromJSONKey, genericParseJSON, genericToJSON, parseJSON, toJSON,
-                                       toJSONKey)
-import           Data.Aeson.Extra     (stripLensPrefix)
-import           Data.Aeson.Types     (toJSONKeyText)
-import           Data.Bits.Lens       (bitAt, byteAt)
-import           Data.Default.Class   (Default, def)
-import qualified Data.Map             as Map
-import           Fmt                  ((+||), (||+))
-import           GenericEnum          (gEnumFromString, gEnumToString)
-
-import           SaffireLE.RawControl (RawControl (..), RawControlValue)
-import           SaffireLE.Utils      (toBool)
+import           Control.Lens.TH    (makeFieldsNoPrefix)
+import           Data.Aeson         (FromJSON, ToJSON)
+import           Data.Aeson.Extra   (StripLensPrefix (..))
+import           Data.Default.Class (Default, def)
 
 type MixValue = Double
 
@@ -38,10 +27,9 @@ data Mixer
     , _out4         :: RMix
     , _recMix       :: RecMix
     , _out12ToSpdif :: Bool
-    } deriving (Show, Eq, Generic)
-
-instance ToJSON   Mixer where    toJSON = genericToJSON    stripLensPrefix
-instance FromJSON Mixer where parseJSON = genericParseJSON stripLensPrefix
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving (ToJSON, FromJSON) via (StripLensPrefix Mixer)
 instance Default  Mixer where def = Mixer def def def def def False
 
 data LMix
@@ -49,22 +37,20 @@ data LMix
     { _dac1   :: MixValue
     , _dac3   :: MixValue
     , _recMix :: MixValue
-    } deriving (Show, Eq, Generic)
-
-instance ToJSON   LMix where    toJSON = genericToJSON    stripLensPrefix
-instance FromJSON LMix where parseJSON = genericParseJSON stripLensPrefix
-instance Default  LMix where def = LMix def def def
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (Default)
+    deriving (ToJSON, FromJSON) via (StripLensPrefix LMix)
 
 data RMix
     = RMix
     { _dac2   :: MixValue
     , _dac4   :: MixValue
     , _recMix :: MixValue
-    } deriving (Show, Eq, Generic)
-
-instance ToJSON   RMix where    toJSON = genericToJSON    stripLensPrefix
-instance FromJSON RMix where parseJSON = genericParseJSON stripLensPrefix
-instance Default  RMix where def = RMix def def def
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (Default)
+    deriving (ToJSON, FromJSON) via (StripLensPrefix RMix)
 
 data RecMix
     = RecMix
@@ -74,11 +60,10 @@ data RecMix
     , _in4    :: MixValue
     , _spdif1 :: MixValue
     , _spdif2 :: MixValue
-    } deriving (Show, Eq, Generic)
-
-instance ToJSON   RecMix where    toJSON = genericToJSON    stripLensPrefix
-instance FromJSON RecMix where parseJSON = genericParseJSON stripLensPrefix
-instance Default  RecMix where def = RecMix def def def def def def
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (Default)
+    deriving (ToJSON, FromJSON) via (StripLensPrefix RecMix)
 
 
 makeFieldsNoPrefix ''Mixer

@@ -40,6 +40,7 @@ dependencies:
   - lifted-base
   - monad-loops
   - directory
+  - smuggler
 default-extensions:
   - NoImplicitPrelude
   - OverloadedStrings

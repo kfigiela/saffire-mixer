@@ -8,21 +8,13 @@ module SaffireLE.Status where
 
 import           Universum
 
-import           Control.Lens         (at, non, (?~), Getter, to)
+import           Control.Lens         (at)
 import           Control.Lens.TH      (makeLenses)
-import           Data.Aeson           (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser),
-                                       ToJSON, ToJSONKey, fromJSONKey,
-                                       genericParseJSON, genericToJSON,
-                                       parseJSON, toJSON, toJSONKey)
-import           Data.Aeson.Extra     (stripLensPrefix)
-import           Data.Aeson.Types     (toJSONKeyText)
-import           Data.Bits.Lens       (bitAt, byteAt)
+import           Data.Aeson           (ToJSON)
+import           Data.Aeson.Extra     (StripLensPrefix (..))
 import           Data.Default.Class   (Default, def)
 import qualified Data.Map             as Map
-import           Fmt                  ((+||), (||+))
-import           GenericEnum          (gEnumFromString, gEnumToString)
 
--- import           SaffireLE.Mixer      (InChannel (..), OutChannel (..))
 import           SaffireLE.RawControl (RawControl (..), RawControlValue)
 import           SaffireLE.Utils      (toBool)
 
@@ -69,9 +61,10 @@ data VUMeters
     , _dac3      :: MeterValue
     , _dac2      :: MeterValue
     , _dac4      :: MeterValue
-    } deriving (Show, Eq, Generic, Default)
-
-instance ToJSON VUMeters where toJSON = genericToJSON stripLensPrefix
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (Default)
+    deriving (ToJSON) via (StripLensPrefix VUMeters)
 makeLenses ''VUMeters
 
 data AudioStatus = Idle | Running deriving (Show, Eq, Generic, ToJSON, Enum)
@@ -89,10 +82,10 @@ data DeviceStatus
     { _meters       :: VUMeters
     , _extClockLock :: ExternalClockStatus
     , _audioOn      :: AudioStatus
-    } deriving (Show, Eq, Generic, Default)
-
-instance ToJSON   DeviceStatus where toJSON = genericToJSON stripLensPrefix
--- instance FromJSON DeviceStatus where parseJSON = genericParseJSON stripLensPrefix
+    }
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (Default)
+    deriving (ToJSON) via (StripLensPrefix DeviceStatus)
 
 makeLenses ''DeviceStatus
 

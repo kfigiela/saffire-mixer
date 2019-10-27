@@ -8,10 +8,9 @@ import           Universum
 
 import           Control.Concurrent           (threadDelay)
 import           Control.Exception            (AsyncException (..), handle, throw)
-import           Control.Lens                 (at, ix, non)
+import           Control.Lens                 (ix)
 import qualified Data.ByteString.Char8        as BS
 import           Data.Default.Class           (def)
-import qualified Data.Map                     as Map
 import qualified Data.Text                    as Text
 import           Data.Yaml                    (decodeFileThrow)
 import           Data.Yaml.Pretty

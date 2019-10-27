@@ -12,11 +12,9 @@ module SaffireLE.Mixer.Stereo where
 
 import           Universum
 
-import           Control.Lens.TH        (makeFieldsNoPrefix, makeLenses)
-import           Data.Aeson             (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON,
-                                         ToJSONKey, fromJSONKey, genericParseJSON, genericToJSON, parseJSON, toJSON,
-                                         toJSONKey)
-import           Data.Aeson.Extra       (StripLensPrefix(..))
+import           Control.Lens.TH        (makeFieldsNoPrefix)
+import           Data.Aeson             (FromJSON, ToJSON)
+import           Data.Aeson.Extra       (StripLensPrefix (..))
 import           Data.Default.Class     (Default, def)
 
 import           SaffireLE.Mixer.Matrix (MatrixMixer (..), Mix (..))
