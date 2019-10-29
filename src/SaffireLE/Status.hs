@@ -90,15 +90,17 @@ data DeviceStatus
 makeLenses ''DeviceStatus
 
 updateDeviceStatus :: DeviceStatus -> [(RawControl, RawControlValue)] -> DeviceStatus
-updateDeviceStatus = foldl updateDeviceStatus'
+updateDeviceStatus = foldr (flip updateDeviceStatus')
 
 updateDeviceStatus' :: DeviceStatus -> (RawControl, RawControlValue) -> DeviceStatus
 updateDeviceStatus' state (control, value) = f value state where
-    f = fromMaybe (const id) $ meterControlsMap ^. at control
-    meterControlsMap = Map.fromList meterControls
+    f = fromMaybe (const id) $ Map.lookup control meterControlsMap
 
 dbValue :: Word32 -> MeterValue
 dbValue val = 20 * (logBase 10 (fromIntegral val / 0x7fffffff))
+
+meterControlsMap :: Map RawControl ( RawControlValue -> DeviceStatus -> DeviceStatus)
+meterControlsMap = Map.fromList meterControls
 
 meterControls :: [(RawControl, RawControlValue -> DeviceStatus -> DeviceStatus)]
 meterControls =
