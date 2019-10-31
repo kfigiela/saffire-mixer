@@ -8,8 +8,8 @@ import           Data.Default.Class             (def)
 
 import           Control.Concurrent             (forkIO, threadDelay)
 import           Control.Concurrent.STM.TChan
-import           Control.Exception
-import           Control.Exception
+import           Control.Concurrent.STM.TVar
+import           Control.Exception              hiding (bracket)
 import           Control.Lens.TH                (makeLenses)
 import           Control.Monad.Loops            (iterateM_, whileJust_)
 import           Data.Aeson                     (FromJSON, ToJSON)
@@ -56,12 +56,12 @@ data SaffireCmd =
 data MixerCmd =
     Noop
     | Mute { _output :: OutputPair, _muted :: Bool }
-    | Attenuate { _output :: OutputPair, _db :: Double }
+    | Attenuate { _output :: OutputPair, _db :: Word8 }
     | InGain { _input :: InputChannel, _gainOn :: Bool }
     | MidiThru { _midiThru :: Bool }
     | SPDIFTransparent { _spdifTransparent :: Bool }
     | SetMatrixMixer { _matrixMix :: MM.MatrixMixer }
-    | SetStereoMixer { _steroMix :: SM.StereoMixer }
+    | SetStereoMixer { _stereoMix :: SM.StereoMixer }
     | SetHighResMixer { _highResMix :: HM.Mixer }
     deriving stock (Generic, Show)
     deriving (ToJSON, FromJSON) via (StripLensPrefix MixerCmd)
@@ -91,18 +91,21 @@ data SaffireStatus =
 
 runServer :: IO ()
 runServer = do
+    connectedClientCountVar <- atomically $ newTVar 0
     saffireCommandChan <- atomically newTChan
     saffireStatusChan <- atomically newBroadcastTChan
-    -- forkIO $ forever $ do
-    --     atomically $ writeTChan saffireCommandChan Meter
-    --     threadDelay 40_000
+    forkIO $ forever $ do
+        atomically $ do
+            connectedClientCount <- readTVar connectedClientCountVar
+            when (connectedClientCount > 0) $ writeTChan saffireCommandChan Meter
+        threadDelay 40_000
 
-    runSaffire saffireCommandChan saffireStatusChan
+    runSaffire saffireCommandChan saffireStatusChan connectedClientCountVar
 
-    Warp.run 3000 (app saffireCommandChan saffireStatusChan)
+    Warp.run 3000 (app saffireCommandChan saffireStatusChan connectedClientCountVar)
 
-runSaffire :: TChan SaffireCmd -> TChan SaffireStatus -> IO ()
-runSaffire cmdChan statusChan = void $ forkIO $ do
+runSaffire :: TChan SaffireCmd -> TChan SaffireStatus -> TVar Int -> IO ()
+runSaffire cmdChan statusChan connectedClientCountVar = void $ forkIO $ do
     stateFile <- statePath
     forever $ void $ do
         putTextLn "Trying to connect to the device"
@@ -207,12 +210,12 @@ emptyTChan :: TChan a -> STM ()
 emptyTChan tchan = whileJust_ (tryReadTChan tchan) (const $ pure ())
 
 
-app :: TChan SaffireCmd -> TChan SaffireStatus -> Application
-app cmdChan statusChan = websocketsOr defaultConnectionOptions wsApp backupApp
+app :: TChan SaffireCmd -> TChan SaffireStatus -> TVar Int -> Application
+app cmdChan statusChan connectedClientCountVar = websocketsOr defaultConnectionOptions wsApp backupApp
   where
     wsApp :: ServerApp
-    wsApp pending_conn = do
-        conn <- acceptRequest pending_conn
+    wsApp pendingConn = bracket (atomically $ modifyTVar connectedClientCountVar succ) (\_ -> atomically $ modifyTVar connectedClientCountVar pred) $ \_ -> do
+        conn <- acceptRequest pendingConn
         void $ forkIO $ do
             localStatusChan <- atomically $ dupTChan statusChan
             atomically $ writeTChan cmdChan GetState

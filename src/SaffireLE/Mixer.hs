@@ -30,7 +30,7 @@ type MixValue = Double
 data OutOpts
     = OutOpts
     { _mute        :: Bool
-    , _attenuation :: Double
+    , _attenuation :: Word8
     }
     deriving stock (Show, Eq, Generic)
     deriving (ToJSON, FromJSON) via (StripLensPrefix OutOpts)
@@ -45,12 +45,12 @@ fromOutOpts (OutOpts mute attenuation) =
     &  bitAt 25 .~ mute
     where
         attenuation' :: Word8
-        attenuation' = floor $ attenuation * 0x7f
+        attenuation' = min attenuation 0x7f
 
 toOutOpts :: Word32 -> OutOpts
 toOutOpts value = OutOpts
     { _mute        = value ^. bitAt 25
-    , _attenuation = (fromIntegral $ value ^. byteAt 0) / 0x7f
+    , _attenuation = value ^. byteAt 0
     }
 
 
