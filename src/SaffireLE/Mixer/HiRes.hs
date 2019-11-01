@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE DuplicateRecordFields  #-}
+{-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE RankNTypes             #-}
@@ -21,36 +22,24 @@ type MixValue = Double
 -- | 88.2 kHz and 96 kHz sample rate mixers
 data Mixer
     = Mixer
-    { _out1         :: LMix
-    , _out2         :: RMix
-    , _out3         :: LMix
-    , _out4         :: RMix
+    { _out12        :: Mix
+    , _out34        :: Mix
     , _recMix       :: RecMix
     , _out12ToSpdif :: Bool
     }
     deriving stock (Show, Eq, Generic)
     deriving (ToJSON, FromJSON) via (StripLensPrefix Mixer)
-instance Default  Mixer where def = Mixer def def def def def False
+instance Default  Mixer where def = Mixer def def def False
 
-data LMix
-    = LMix
-    { _dac1   :: MixValue
-    , _dac3   :: MixValue
-    , _recMix :: MixValue
+data Mix
+    = Mix
+    { _dac12  :: (MixValue, MixValue)
+    , _dac34  :: (MixValue, MixValue)
+    , _recMix :: (MixValue, MixValue)
     }
     deriving stock (Show, Eq, Generic)
     deriving anyclass (Default)
-    deriving (ToJSON, FromJSON) via (StripLensPrefix LMix)
-
-data RMix
-    = RMix
-    { _dac2   :: MixValue
-    , _dac4   :: MixValue
-    , _recMix :: MixValue
-    }
-    deriving stock (Show, Eq, Generic)
-    deriving anyclass (Default)
-    deriving (ToJSON, FromJSON) via (StripLensPrefix RMix)
+    deriving (ToJSON, FromJSON) via (StripLensPrefix Mix)
 
 data RecMix
     = RecMix
@@ -67,6 +56,5 @@ data RecMix
 
 
 makeFieldsNoPrefix ''Mixer
-makeFieldsNoPrefix ''LMix
-makeFieldsNoPrefix ''RMix
+makeFieldsNoPrefix ''Mix
 makeFieldsNoPrefix ''RecMix

@@ -29,6 +29,7 @@ import           SaffireLE.Device
 import           SaffireLE.Mixer
 import qualified SaffireLE.Mixer                as M
 import qualified SaffireLE.Mixer.HiRes          as HM
+import qualified SaffireLE.Mixer.HiResStereo    as SHM
 import           SaffireLE.Mixer.Matrix         (MatrixMixer)
 import qualified SaffireLE.Mixer.Matrix         as MM
 import qualified SaffireLE.Mixer.Stereo         as SM
@@ -39,8 +40,9 @@ import           Text.Printf
 
 data State =
     State
-    { _mixer  :: !M.MixerState
-    , _stereo :: !SM.StereoMixer
+    { _mixer       :: !M.MixerState
+    , _stereo      :: !SM.StereoMixer
+    , _hiResStereo :: !SHM.StereoMixer
     }
     deriving stock (Generic, Show)
     deriving anyclass (Default)
@@ -64,6 +66,7 @@ data MixerCmd =
     | SetMatrixMixer { _matrixMix :: MM.MatrixMixer }
     | SetStereoMixer { _stereoMix :: SM.StereoMixer }
     | SetHighResMixer { _highResMix :: HM.Mixer }
+    | SetHighResStereoMixer { _highResStereoMix :: SHM.StereoMixer }
     deriving stock (Generic, Show)
     deriving (ToJSON, FromJSON) via (StripLensPrefix MixerCmd)
 
@@ -138,7 +141,7 @@ runSaffire deviceCommandChan statusChan connectedClientCountVar readState = void
         threadDelay 1_000_000
     where
     writeCurrentState devPtr = do
-        State matrix _ <- atomically $ readState
+        State matrix _ _ <- atomically $ readState
         void $ writeSaffire devPtr $ hardwarizeMixerState matrix
 
 readState :: FilePath -> IO State
@@ -181,7 +184,7 @@ processCommand statusChan devPtr Meter = do
     rawMeters <- readSaffire devPtr allMeters
     let meters = updateDeviceStatus def rawMeters
     atomically $ writeTChan statusChan (Meters meters)
-processCommand statusChan devPtr (SetState (State matrix _stereo)) = do
+processCommand statusChan devPtr (SetState (State matrix _stereo _hiResStereo)) = do
     void $ writeSaffire devPtr $ hardwarizeMixerState matrix
 
 broadcastState :: TChan SaffireStatus -> State -> IO ()
@@ -210,7 +213,10 @@ processMixerCmd (SetStereoMixer mix) mixerState =
                & stereo .~ mix
 processMixerCmd (SetHighResMixer mix) mixerState =
     mixerState & mixer . M.highResMixer .~ mix
-
+               & hiResStereo .~ SHM.toStereoMixer mix
+processMixerCmd (SetHighResStereoMixer mix) mixerState =
+    mixerState & mixer . M.highResMixer .~ SHM.fromStereoMixer mix
+               & hiResStereo .~ mix
 
 emptyTChan :: TChan a -> STM ()
 emptyTChan tchan = whileJust_ (tryReadTChan tchan) (const $ pure ())

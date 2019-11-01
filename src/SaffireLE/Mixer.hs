@@ -171,21 +171,21 @@ mixerControls =
     , (In4ToRecmix_96K,    mixControl (highResMixer . H.recMix . H.in4))
     , (Spdif2ToRecmix_96K, mixControl (highResMixer . H.recMix . H.spdif2))
     -- Out1
-    , (RecmixToOut1_96K,  mixControl (highResMixer . H.out1 . H.recMix))
-    , (Pc1ToOut1_96K,     mixControl (highResMixer . H.out1 . H.dac1))
-    , (Pc2ToOut1_96K,     mixControl (highResMixer . H.out1 . H.dac3))
+    , (RecmixToOut1_96K,  mixControl (highResMixer . H.out12 . H.recMix . _1))
+    , (Pc1ToOut1_96K,     mixControl (highResMixer . H.out12 . H.dac12  . _1))
+    , (Pc2ToOut1_96K,     mixControl (highResMixer . H.out12 . H.dac34  . _1))
     -- Out3
-    , (RecmixToOut3_96K,  mixControl (highResMixer . H.out2 . H.recMix))
-    , (Pc1ToOut3_96K,     mixControl (highResMixer . H.out2 . H.dac2))
-    , (Pc2ToOut3_96K,     mixControl (highResMixer . H.out2 . H.dac4))
+    , (RecmixToOut3_96K,  mixControl (highResMixer . H.out12 . H.recMix . _2))
+    , (Pc1ToOut3_96K,     mixControl (highResMixer . H.out12 . H.dac12  . _2))
+    , (Pc2ToOut3_96K,     mixControl (highResMixer . H.out12 . H.dac34  . _2))
     -- Out2
-    , (RecmixToOut2_96K,  mixControl (highResMixer . H.out3 . H.recMix))
-    , (Pc1ToOut2_96K,     mixControl (highResMixer . H.out3 . H.dac1))
-    , (Pc2ToOut2_96K,     mixControl (highResMixer . H.out3 . H.dac3))
+    , (RecmixToOut2_96K,  mixControl (highResMixer . H.out34 . H.recMix . _1))
+    , (Pc1ToOut2_96K,     mixControl (highResMixer . H.out34 . H.dac12  . _1))
+    , (Pc2ToOut2_96K,     mixControl (highResMixer . H.out34 . H.dac34  . _1))
     -- Out 4
-    , (RecmixToOut4_96K,  mixControl (highResMixer . H.out4 . H.recMix))
-    , (Pc1ToOut4_96K,     mixControl (highResMixer . H.out4 . H.dac2))
-    , (Pc2ToOut4_96K,     mixControl (highResMixer . H.out4 . H.dac4))
+    , (RecmixToOut4_96K,  mixControl (highResMixer . H.out34 . H.recMix . _2))
+    , (Pc1ToOut4_96K,     mixControl (highResMixer . H.out34 . H.dac12  . _2))
+    , (Pc2ToOut4_96K,     mixControl (highResMixer . H.out34 . H.dac34  . _2))
     ]
   where
     booleanControl :: Lens' MixerState Bool -> (RawControlValue -> MixerState -> MixerState, MixerState -> RawControlValue)
