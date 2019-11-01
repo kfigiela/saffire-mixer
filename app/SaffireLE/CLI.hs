@@ -3,49 +3,56 @@
 
 module SaffireLE.CLI where
 
-import           Prelude                       (isInfinite)
+import           Prelude                      (isInfinite)
 import           Universum
 
-import           Control.Concurrent            (threadDelay)
-import           Control.Exception             (AsyncException (..), handle, throw)
-import           Control.Lens                  (ix)
-import qualified Data.ByteString.Char8         as BS
-import           Data.Default.Class            (def)
-import qualified Data.Text                     as Text
-import           Data.Yaml                     (decodeFileThrow)
+import           Control.Concurrent           (threadDelay)
+import           Control.Exception            (AsyncException (..), handle, throw)
+import           Control.Lens                 (ix)
+import qualified Data.ByteString.Char8        as BS
+import           Data.Default.Class           (def)
+import qualified Data.Text                    as Text
+import           Data.Yaml                    (decodeFileThrow)
 import           Data.Yaml.Pretty
 import           Fmt
-import           Fmt.Terminal                  (Color (..), colorF, colorVividF)
+import           Fmt.Terminal                 (Color (..), colorF, colorVividF)
 import           Options.Applicative
 import           System.Console.ANSI
-import qualified System.Console.Terminal.Size  as Terminal (Window (..), size)
+import qualified System.Console.Terminal.Size as Terminal (Window (..), size)
 
 import           SaffireLE.Device
 import           SaffireLE.Mixer.Raw
-import           SaffireLE.Mixer.Stereo.LowRes (toStereoMixer)
-import qualified SaffireLE.RawControl          as Raw
-import           SaffireLE.Server              (runServer)
+import qualified SaffireLE.Mixer.Stereo       as SM
+import qualified SaffireLE.RawControl         as Raw
+import           SaffireLE.Server             (runServer, statePath)
 import           SaffireLE.Status
+
+data Mode = Matrix | Stereo deriving (Eq, Show)
 
 data Command
   = LoadSettings { _filename :: FilePath }
-  | DumpSettings { _filename :: FilePath }
+  | ReadSettings { _filename :: FilePath, _stereo :: Mode }
   | SaveSettings
   | Status
   | Meter
   | Server
   deriving (Eq, Show)
 
-loadSettings :: Parser Command
-loadSettings = LoadSettings <$> strOption (long "file" <> short 'f' <> help "File where mixer state is stored" <> metavar "FILE" <> value "$HOME/.saffire-mixer.yaml" <> showDefault)
+loadSettings :: FilePath -> Parser Command
+loadSettings defaultSettingsPath =
+    LoadSettings
+    <$> strOption (long "file" <> short 'f' <> help "File where mixer state is stored" <> metavar "FILE" <> value defaultSettingsPath <> showDefault)
 
-dumpSettings :: Parser Command
-dumpSettings = DumpSettings <$> strOption (long "file" <> short 'f' <> help "File where mixer state is stored" <> metavar "FILE" <> value "$HOME/.saffire-mixer.yaml" <> showDefault)
+readSettings :: FilePath -> Parser Command
+readSettings defaultSettingsPath =
+    ReadSettings
+    <$> strOption (long "file" <> short 'f' <> help "File where mixer state is stored" <> metavar "FILE" <> value defaultSettingsPath <> showDefault)
+    <*> flag Stereo Matrix (long "matrix" <> short 'm' <> help "Use matrix format")
 
-cli :: Parser Command
-cli = hsubparser
-   (  command "load"  (info (loadSettings <**> helper) (progDesc "Load settings from file to device"))
-   <> command "dump"  (info (dumpSettings <**> helper) (progDesc "Dump settings from device to file"))
+cli :: FilePath -> Parser Command
+cli defaultSettingsPath = hsubparser
+   (  command "load"  (info (loadSettings defaultSettingsPath <**> helper) (progDesc "Load settings from file to device"))
+   <> command "read"  (info (readSettings defaultSettingsPath <**> helper) (progDesc "Read settings from device to file"))
    <> command "save"  (info (pure SaveSettings) (progDesc "Store settings in a persistent device memory. Causes brief audio interruption."))
    <> command "status" (info (pure Status) (progDesc "Display device status incl. metering values"))
    <> command "meter" (info (pure Meter) (progDesc "Display bar meters"))
@@ -53,10 +60,12 @@ cli = hsubparser
    )
 
 main :: IO ()
-main = execParser opts >>= runCommands
+main = do
+    defaultSettingsPath <- statePath
+    execParser (opts defaultSettingsPath) >>= runCommands
 
-opts :: ParserInfo Command
-opts = info (cli <**> helper) idm
+opts :: FilePath -> ParserInfo Command
+opts defaultSettingsPath = info (cli defaultSettingsPath <**> helper) idm
 
 barRange :: Double
 barRange = 80
@@ -65,15 +74,18 @@ runCommands :: Command -> IO ()
 runCommands cmd =
     case cmd of
         LoadSettings file -> runDevice $ \devPtr -> do
-            mixerState <- decodeFileThrow file
+            mixerState <- either SM.toRaw id <$> decodeFileThrow file
             let rawData = hardwarizeMixerState mixerState
             void $ writeSaffire devPtr rawData
-        DumpSettings file -> runDevice $ \devPtr -> do
+        ReadSettings file Matrix -> runDevice $ \devPtr -> do
             rawData <- readSaffire devPtr allControls
             let mixer' = updateMixerState def rawData
                 yaml = encodePretty (defConfig & setConfCompare compare) mixer'
-                stereoMixer = toStereoMixer (mixer' ^. lowResMixer)
-            putTextLn $ decodeUtf8 @Text @ByteString $ encodePretty (defConfig & setConfCompare compare) stereoMixer
+            void $ BS.writeFile file yaml
+        ReadSettings file Stereo -> runDevice $ \devPtr -> do
+            rawData <- readSaffire devPtr allControls
+            let mixer' = SM.fromRaw $ updateMixerState def rawData
+                yaml = encodePretty (defConfig & setConfCompare compare) mixer'
             void $ BS.writeFile file yaml
         SaveSettings -> runDevice $ \devPtr -> void $ writeSaffire devPtr [(Raw.SaveSettings, 1)]
         Status -> runDevice $ \devPtr -> do

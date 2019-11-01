@@ -161,9 +161,11 @@ app cmdChan statusChan connectedClientCountVar readState = websocketsOr defaultC
             localStatusChan <- atomically $ dupTChan statusChan
             forever $ atomically (readTChan localStatusChan) >>= sendStatus conn
         forever $ do
-            message :: Maybe SM.MixerState <- A.decode . fromDataMessage <$> receiveDataMessage conn
+            message :: Either String SM.MixerState <- A.eitherDecode . fromDataMessage <$> receiveDataMessage conn
             print message
-            whenJust message $ atomically . writeTChan cmdChan
+            case message of
+                Right state -> atomically $ writeTChan cmdChan state
+                Left err    -> print err
 
     backupApp :: Application
     backupApp _ respond = respond $ responseLBS status400 [] "Not a WebSocket request"
