@@ -3,28 +3,28 @@
 
 module SaffireLE.CLI where
 
-import           Prelude                      (isInfinite)
+import           Prelude                       (isInfinite)
 import           Universum
 
-import           Control.Concurrent           (threadDelay)
-import           Control.Exception            (AsyncException (..), handle, throw)
-import           Control.Lens                 (ix)
-import qualified Data.ByteString.Char8        as BS
-import           Data.Default.Class           (def)
-import qualified Data.Text                    as Text
-import           Data.Yaml                    (decodeFileThrow)
+import           Control.Concurrent            (threadDelay)
+import           Control.Exception             (AsyncException (..), handle, throw)
+import           Control.Lens                  (ix)
+import qualified Data.ByteString.Char8         as BS
+import           Data.Default.Class            (def)
+import qualified Data.Text                     as Text
+import           Data.Yaml                     (decodeFileThrow)
 import           Data.Yaml.Pretty
 import           Fmt
-import           Fmt.Terminal                 (Color (..), colorF, colorVividF)
+import           Fmt.Terminal                  (Color (..), colorF, colorVividF)
 import           Options.Applicative
 import           System.Console.ANSI
-import qualified System.Console.Terminal.Size as Terminal (Window (..), size)
+import qualified System.Console.Terminal.Size  as Terminal (Window (..), size)
 
 import           SaffireLE.Device
-import           SaffireLE.Mixer
-import           SaffireLE.Mixer.Stereo       (toStereoMixer)
-import qualified SaffireLE.RawControl         as Raw
-import           SaffireLE.Server             (runServer)
+import           SaffireLE.Mixer.Raw
+import           SaffireLE.Mixer.Stereo.LowRes (toStereoMixer)
+import qualified SaffireLE.RawControl          as Raw
+import           SaffireLE.Server              (runServer)
 import           SaffireLE.Status
 
 data Command

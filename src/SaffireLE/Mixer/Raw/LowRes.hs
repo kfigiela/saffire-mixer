@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE TypeSynonymInstances   #-}
 
-module SaffireLE.Mixer.Matrix where
+module SaffireLE.Mixer.Raw.LowRes where
 
 import           Control.Lens.TH    (makeFieldsNoPrefix)
 import           Data.Aeson         (FromJSON, ToJSON)

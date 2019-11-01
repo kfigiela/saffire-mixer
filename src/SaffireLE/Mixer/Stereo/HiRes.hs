@@ -7,17 +7,17 @@
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE TypeSynonymInstances   #-}
 
-module SaffireLE.Mixer.HiResStereo where
+module SaffireLE.Mixer.Stereo.HiRes where
 
 import           Universum
 
-import           Control.Lens.TH        (makeFieldsNoPrefix)
-import           Data.Aeson             (FromJSON, ToJSON)
-import           Data.Aeson.Extra       (StripLensPrefix (..))
-import           Data.Default.Class     (Default, def)
+import           Control.Lens.TH               (makeFieldsNoPrefix)
+import           Data.Aeson                    (FromJSON, ToJSON)
+import           Data.Aeson.Extra              (StripLensPrefix (..))
+import           Data.Default.Class            (Default, def)
 
-import qualified SaffireLE.Mixer.HiRes  as H
-import           SaffireLE.Mixer.Stereo (ChannelMix, channelMixToVolume, volumeToChannelMix)
+import qualified SaffireLE.Mixer.Raw.HiRes     as H
+import           SaffireLE.Mixer.Stereo.LowRes (ChannelMix, channelMixToVolume, volumeToChannelMix)
 
 type MixValue = Double
 

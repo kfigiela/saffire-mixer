@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE TypeSynonymInstances   #-}
 
-module SaffireLE.Mixer.HiRes where
+module SaffireLE.Mixer.Raw.HiRes where
 
 import           Universum
 

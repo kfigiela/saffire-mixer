@@ -24,98 +24,55 @@ import           Network.HTTP.Types             (status200, status400)
 import           Network.Wai
 import qualified Network.Wai.Handler.Warp       as Warp (run)
 import           Network.Wai.Handler.WebSockets
-import           Network.WebSockets
-import           SaffireLE.Device
-import           SaffireLE.Mixer
-import qualified SaffireLE.Mixer                as M
-import qualified SaffireLE.Mixer.HiRes          as HM
-import qualified SaffireLE.Mixer.HiResStereo    as SHM
-import           SaffireLE.Mixer.Matrix         (MatrixMixer)
-import qualified SaffireLE.Mixer.Matrix         as MM
+import           Network.WebSockets             as WS
+import           SaffireLE.Device               (DeviceError, FWARef, nodeIds, readSaffire, withDevice, writeSaffire)
+import           SaffireLE.Mixer.Raw            (hardwarizeMixerState)
+import qualified SaffireLE.Mixer.Raw            as M
+import qualified SaffireLE.Mixer.Raw.HiRes      as HM
+import           SaffireLE.Mixer.Raw.LowRes     (MatrixMixer)
+import qualified SaffireLE.Mixer.Raw.LowRes     as MM
 import qualified SaffireLE.Mixer.Stereo         as SM
-import           SaffireLE.Status
+import qualified SaffireLE.Mixer.Stereo.HiRes   as SHM
+import qualified SaffireLE.Mixer.Stereo.LowRes  as SLM
+import           SaffireLE.Status               (DeviceStatus, allMeters, updateDeviceStatus)
 import           System.CPUTime
 import           System.Directory               (createDirectoryIfMissing, getAppUserDataDirectory)
 import           Text.Printf
 
-data State =
-    State
-    { _mixer       :: !M.MixerState
-    , _stereo      :: !SM.StereoMixer
-    , _hiResStereo :: !SHM.StereoMixer
-    }
-    deriving stock (Generic, Show)
-    deriving anyclass (Default)
-    deriving (ToJSON, FromJSON) via (StripLensPrefix State)
-
-makeLenses ''State
 
 data SaffireCmd =
     Meter
-    | SetState State
+    | UpdateState SM.MixerState
     deriving stock (Generic, Show)
     deriving anyclass (ToJSON, FromJSON)
-
-data MixerCmd =
-    Noop
-    | Mute { _output :: OutputPair, _muted :: Bool }
-    | Attenuate { _output :: OutputPair, _db :: Word8 }
-    | InGain { _input :: InputChannel, _gainOn :: Bool }
-    | MidiThru { _midiThru :: Bool }
-    | SPDIFTransparent { _spdifTransparent :: Bool }
-    | SetMatrixMixer { _matrixMix :: MM.MatrixMixer }
-    | SetStereoMixer { _stereoMix :: SM.StereoMixer }
-    | SetHighResMixer { _highResMix :: HM.Mixer }
-    | SetHighResStereoMixer { _highResStereoMix :: SHM.StereoMixer }
-    deriving stock (Generic, Show)
-    deriving (ToJSON, FromJSON) via (StripLensPrefix MixerCmd)
-
-data OutputPair = Out12 | Out34 | Out56
-    deriving stock (Generic, Show)
-    deriving anyclass (ToJSON, FromJSON)
-
-outputPairOpts :: OutputPair -> Lens' MixerState OutOpts
-outputPairOpts Out12 = out12Opts
-outputPairOpts Out34 = out34Opts
-outputPairOpts Out56 = out56Opts
-
-data InputChannel = Ch3 | Ch4
-    deriving stock (Generic, Show)
-    deriving anyclass (ToJSON, FromJSON)
-
-inChGain :: InputChannel -> Lens' MixerState Bool
-inChGain Ch3 = in3Gain
-inChGain Ch4 = in4Gain
 
 data SaffireStatus =
     Meters DeviceStatus
-    | CurrentState State
+    | CurrentState SM.MixerState
     deriving stock (Generic)
     deriving anyclass (ToJSON)
 
 runServer :: IO ()
 runServer = do
-
     deviceCommandChan <- atomically newTChan
     statusChan <- atomically newBroadcastTChan
     connectedClientCountVar <- atomically $ newTVar 0
 
     -- Maintain stateVar
-    (readState, mixerCmdChan) <- do
+    (readState, mixerUpdateChan) <- do
         stateFile <- statePath
         initialState <- readState stateFile
         stateVar <- atomically $ newTVar initialState
-        mixerCmdChan <- atomically newTChan
+        mixerUpdateChan <- atomically newTChan
         forkIO $ forever $ do
             newState <- atomically $ do
-                mixerCmd <- readTChan mixerCmdChan
-                modifyTVar stateVar $ processMixerCmd mixerCmd
-                newState <- readTVar stateVar
-                writeTChan deviceCommandChan $ SetState newState
+                newState <- readTChan mixerUpdateChan
+                writeTVar stateVar newState
+                writeTChan deviceCommandChan $ UpdateState newState
                 writeTChan statusChan  $ CurrentState newState
                 pure newState
             writeState stateFile newState
-        pure (readTVar stateVar, mixerCmdChan)
+        pure (readTVar stateVar, mixerUpdateChan)
 
     -- Request meters update when clients are connected
     forkIO $ forever $ do
@@ -126,9 +83,9 @@ runServer = do
 
     runSaffire deviceCommandChan statusChan connectedClientCountVar readState
 
-    Warp.run 3000 (app mixerCmdChan statusChan connectedClientCountVar readState)
+    Warp.run 3000 (app mixerUpdateChan statusChan connectedClientCountVar readState)
 
-runSaffire :: TChan SaffireCmd -> TChan SaffireStatus -> TVar Int -> STM State -> IO ()
+runSaffire :: TChan SaffireCmd -> TChan SaffireStatus -> TVar Int -> STM SM.MixerState -> IO ()
 runSaffire deviceCommandChan statusChan connectedClientCountVar readState = void $ forkIO $ do
     forever $ void $ do
         putTextLn "Trying to connect to the device"
@@ -141,10 +98,10 @@ runSaffire deviceCommandChan statusChan connectedClientCountVar readState = void
         threadDelay 1_000_000
     where
     writeCurrentState devPtr = do
-        State matrix _ _ <- atomically $ readState
-        void $ writeSaffire devPtr $ hardwarizeMixerState matrix
+        stereoMixerState <- atomically $ readState
+        void $ writeSaffire devPtr $ hardwarizeMixerState $ SM.toRaw stereoMixerState
 
-readState :: FilePath -> IO State
+readState :: FilePath -> IO SM.MixerState
 readState file = do
     state <- Y.decodeFileEither file
     case state of
@@ -156,7 +113,7 @@ readState file = do
             pure def
 
 
-writeState :: FilePath -> State -> IO ()
+writeState :: FilePath -> SM.MixerState -> IO ()
 writeState file state = do
     let yaml = Y.encodePretty (Y.defConfig & Y.setConfCompare compare) state
     appDir <- getAppUserDataDirectory "saffire-mixer"
@@ -184,48 +141,19 @@ processCommand statusChan devPtr Meter = do
     rawMeters <- readSaffire devPtr allMeters
     let meters = updateDeviceStatus def rawMeters
     atomically $ writeTChan statusChan (Meters meters)
-processCommand statusChan devPtr (SetState (State matrix _stereo _hiResStereo)) = do
-    void $ writeSaffire devPtr $ hardwarizeMixerState matrix
+processCommand statusChan devPtr (UpdateState state) = do
+    void $ writeSaffire devPtr $ hardwarizeMixerState $ SM.toRaw state
 
-broadcastState :: TChan SaffireStatus -> State -> IO ()
+broadcastState :: TChan SaffireStatus -> SM.MixerState -> IO ()
 broadcastState statusChan state = atomically $ writeTChan statusChan (CurrentState state)
-
-processMixerCmd :: MixerCmd -> State -> State
-processMixerCmd (Mute out muted) mixerState =
-    mixerState & mixer . outputPairOpts out . mute .~ muted
-               & mixer . outputPairOpts out . mute .~ muted
-               & mixer . outputPairOpts out . mute .~ muted
-processMixerCmd (Attenuate out db) mixerState =
-    mixerState & mixer . outputPairOpts out . attenuation .~ db
-               & mixer . outputPairOpts out . attenuation .~ db
-               & mixer . outputPairOpts out . attenuation .~ db
-processMixerCmd (InGain channel gainOn) mixerState =
-    mixerState & mixer . inChGain channel .~ gainOn
-processMixerCmd (MidiThru value) mixerState =
-    mixerState & mixer . M.midiThru .~ value
-processMixerCmd (SPDIFTransparent value) mixerState =
-    mixerState & mixer . M.spdifTransparent .~ value
-processMixerCmd (SetMatrixMixer matrix) mixerState =
-    mixerState & mixer . M.lowResMixer .~ matrix
-               & stereo .~ SM.toStereoMixer matrix
-processMixerCmd (SetStereoMixer mix) mixerState =
-    mixerState & mixer . M.lowResMixer .~ SM.fromSteroMixer mix
-               & stereo .~ mix
-processMixerCmd (SetHighResMixer mix) mixerState =
-    mixerState & mixer . M.highResMixer .~ mix
-               & hiResStereo .~ SHM.toStereoMixer mix
-processMixerCmd (SetHighResStereoMixer mix) mixerState =
-    mixerState & mixer . M.highResMixer .~ SHM.fromStereoMixer mix
-               & hiResStereo .~ mix
 
 emptyTChan :: TChan a -> STM ()
 emptyTChan tchan = whileJust_ (tryReadTChan tchan) (const $ pure ())
 
-
-app :: TChan MixerCmd -> TChan SaffireStatus -> TVar Int -> STM State -> Application
+app :: TChan SM.MixerState -> TChan SaffireStatus -> TVar Int -> STM SM.MixerState -> Application
 app cmdChan statusChan connectedClientCountVar readState = websocketsOr defaultConnectionOptions wsApp backupApp
   where
-    wsApp :: ServerApp
+    wsApp :: WS.ServerApp
     wsApp pendingConn = bracket (atomically $ modifyTVar connectedClientCountVar succ) (\_ -> atomically $ modifyTVar connectedClientCountVar pred) $ \_ -> do
         conn <- acceptRequest pendingConn
         atomically readState >>= sendStatus conn . CurrentState
@@ -233,11 +161,11 @@ app cmdChan statusChan connectedClientCountVar readState = websocketsOr defaultC
             localStatusChan <- atomically $ dupTChan statusChan
             forever $ atomically (readTChan localStatusChan) >>= sendStatus conn
         forever $ do
-            message :: Maybe MixerCmd <- A.decode . fromDataMessage <$> receiveDataMessage conn
+            message :: Maybe SM.MixerState <- A.decode . fromDataMessage <$> receiveDataMessage conn
             print message
             whenJust message $ atomically . writeTChan cmdChan
 
     backupApp :: Application
     backupApp _ respond = respond $ responseLBS status400 [] "Not a WebSocket request"
-    sendStatus :: Connection -> SaffireStatus -> IO ()
+    sendStatus :: WS.Connection -> SaffireStatus -> IO ()
     sendStatus conn status = sendTextData conn $ A.encode $ status

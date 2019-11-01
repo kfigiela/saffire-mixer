@@ -8,22 +8,22 @@
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE TypeSynonymInstances   #-}
 
-module SaffireLE.Mixer where
+module SaffireLE.Mixer.Raw where
 
 import           Universum
 
-import           Control.Lens           (at)
-import           Control.Lens.TH        (makeLenses)
-import           Data.Aeson             (FromJSON, ToJSON)
-import           Data.Aeson.Extra       (StripLensPrefix (..))
-import           Data.Bits.Lens         (bitAt, byteAt)
-import           Data.Default.Class     (Default, def)
-import qualified Data.Map               as Map
+import           Control.Lens               (at)
+import           Control.Lens.TH            (makeLenses)
+import           Data.Aeson                 (FromJSON, ToJSON)
+import           Data.Aeson.Extra           (StripLensPrefix (..))
+import           Data.Bits.Lens             (bitAt, byteAt)
+import           Data.Default.Class         (Default, def)
+import qualified Data.Map                   as Map
 
-import qualified SaffireLE.Mixer.HiRes  as H
-import qualified SaffireLE.Mixer.Matrix as L
-import           SaffireLE.RawControl   (RawControl (..), RawControlValue)
-import           SaffireLE.Utils        (toBool)
+import qualified SaffireLE.Mixer.Raw.HiRes  as H
+import qualified SaffireLE.Mixer.Raw.LowRes as L
+import           SaffireLE.RawControl       (RawControl (..), RawControlValue)
+import           SaffireLE.Utils            (toBool)
 
 type MixValue = Double
 
@@ -52,7 +52,6 @@ toOutOpts value = OutOpts
     { _mute        = value ^. bitAt 25
     , _attenuation = value ^. byteAt 0
     }
-
 
 data MixerState
     = MixerState
