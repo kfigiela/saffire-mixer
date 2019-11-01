@@ -21,6 +21,7 @@ import           System.Console.ANSI
 import qualified System.Console.Terminal.Size as Terminal (Window (..), size)
 
 import           SaffireLE.Device
+import qualified SaffireLE.Mixer              as M
 import           SaffireLE.Mixer.Raw
 import qualified SaffireLE.Mixer.Stereo       as SM
 import qualified SaffireLE.RawControl         as Raw
@@ -74,23 +75,23 @@ runCommands :: Command -> IO ()
 runCommands cmd =
     case cmd of
         LoadSettings file -> runDevice $ \devPtr -> do
-            mixerState <- either SM.toRaw id <$> decodeFileThrow file
+            mixerState <- M.toRaw <$> decodeFileThrow file
             let rawData = hardwarizeMixerState mixerState
             void $ writeSaffire devPtr rawData
         ReadSettings file Matrix -> runDevice $ \devPtr -> do
             rawData <- readSaffire devPtr allControls
-            let mixer' = updateMixerState def rawData
+            let mixer' = M.Raw $ updateMixerState def rawData
                 yaml = encodePretty (defConfig & setConfCompare compare) mixer'
             void $ BS.writeFile file yaml
         ReadSettings file Stereo -> runDevice $ \devPtr -> do
             rawData <- readSaffire devPtr allControls
-            let mixer' = SM.fromRaw $ updateMixerState def rawData
+            let mixer' = M.Stereo $ SM.fromRaw $ updateMixerState def rawData
                 yaml = encodePretty (defConfig & setConfCompare compare) mixer'
             void $ BS.writeFile file yaml
         SaveSettings -> runDevice $ \devPtr -> void $ writeSaffire devPtr [(Raw.SaveSettings, 1)]
         Status -> runDevice $ \devPtr -> do
             rawData <- readSaffire devPtr allMeters
-            let status = updateDeviceStatus def rawData
+            let status = updateDeviceStatus rawData
                 yaml = encodePretty (defConfig & setConfCompare compare) status
             BS.putStrLn yaml
         Meter -> runDevice $ \devPtr -> do
@@ -102,7 +103,7 @@ runCommands cmd =
                     Nothing                    -> 80
             handle onUserInterrupt $ forM_ [0..] $ \_ -> do
                 rawData <- readSaffire devPtr allMeters
-                let status = updateDeviceStatus def rawData
+                let status = updateDeviceStatus rawData
                 displayMeters terminalWidth status
                 threadDelay 40000
         Server -> runServer

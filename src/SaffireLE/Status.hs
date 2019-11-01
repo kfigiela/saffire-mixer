@@ -89,8 +89,8 @@ data DeviceStatus
 
 makeLenses ''DeviceStatus
 
-updateDeviceStatus :: DeviceStatus -> [(RawControl, RawControlValue)] -> DeviceStatus
-updateDeviceStatus = foldr (flip updateDeviceStatus')
+updateDeviceStatus :: [(RawControl, RawControlValue)] -> DeviceStatus
+updateDeviceStatus = foldr (flip updateDeviceStatus') def
 
 updateDeviceStatus' :: DeviceStatus -> (RawControl, RawControlValue) -> DeviceStatus
 updateDeviceStatus' state (control, value) = f value state where

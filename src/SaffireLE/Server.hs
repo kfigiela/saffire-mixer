@@ -26,14 +26,15 @@ import qualified Network.Wai.Handler.Warp       as Warp (run)
 import           Network.Wai.Handler.WebSockets
 import           Network.WebSockets             as WS
 import           SaffireLE.Device               (DeviceError, FWARef, nodeIds, readSaffire, withDevice, writeSaffire)
+import qualified SaffireLE.Mixer                as M
 import           SaffireLE.Mixer.Raw            (hardwarizeMixerState)
-import qualified SaffireLE.Mixer.Raw            as M
 import qualified SaffireLE.Mixer.Raw.HiRes      as HM
 import           SaffireLE.Mixer.Raw.LowRes     (MatrixMixer)
 import qualified SaffireLE.Mixer.Raw.LowRes     as MM
 import qualified SaffireLE.Mixer.Stereo         as SM
 import qualified SaffireLE.Mixer.Stereo.HiRes   as SHM
 import qualified SaffireLE.Mixer.Stereo.LowRes  as SLM
+import           SaffireLE.RawControl           (RawControl (SaveSettings))
 import           SaffireLE.Status               (DeviceStatus, allMeters, updateDeviceStatus)
 import           System.CPUTime
 import           System.Directory               (createDirectoryIfMissing, getAppUserDataDirectory)
@@ -43,6 +44,7 @@ import           Text.Printf
 data SaffireCmd =
     Meter
     | UpdateState SM.MixerState
+    | PersistState
     deriving stock (Generic, Show)
     deriving anyclass (ToJSON, FromJSON)
 
@@ -103,7 +105,7 @@ runSaffire deviceCommandChan statusChan connectedClientCountVar readState = void
 
 readState :: FilePath -> IO SM.MixerState
 readState file = do
-    state <- Y.decodeFileEither file
+    state <- M.toStereo <<$>> Y.decodeFileEither file
     case state of
         Right state -> do
             putTextLn $ "Loaded state from "+| file |+""
@@ -115,7 +117,7 @@ readState file = do
 
 writeState :: FilePath -> SM.MixerState -> IO ()
 writeState file state = do
-    let yaml = Y.encodePretty (Y.defConfig & Y.setConfCompare compare) state
+    let yaml = Y.encodePretty (Y.defConfig & Y.setConfCompare compare) $ M.Stereo state
     appDir <- getAppUserDataDirectory "saffire-mixer"
     createDirectoryIfMissing True appDir
     void $ BS.writeFile file yaml
@@ -139,10 +141,12 @@ time a = do
 processCommand :: TChan SaffireStatus -> FWARef -> SaffireCmd -> IO ()
 processCommand statusChan devPtr Meter = do
     rawMeters <- readSaffire devPtr allMeters
-    let meters = updateDeviceStatus def rawMeters
+    let meters = updateDeviceStatus rawMeters
     atomically $ writeTChan statusChan (Meters meters)
 processCommand statusChan devPtr (UpdateState state) = do
     void $ writeSaffire devPtr $ hardwarizeMixerState $ SM.toRaw state
+processCommand statusChan devPtr PersistState = do
+    void $ writeSaffire devPtr [(SaveSettings, 1)]
 
 broadcastState :: TChan SaffireStatus -> SM.MixerState -> IO ()
 broadcastState statusChan state = atomically $ writeTChan statusChan (CurrentState state)
