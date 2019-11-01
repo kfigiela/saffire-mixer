@@ -67,8 +67,8 @@ data VUMeters
     deriving (ToJSON) via (StripLensPrefix VUMeters)
 makeLenses ''VUMeters
 
-data AudioStatus = Idle | Running deriving (Show, Eq, Generic, ToJSON, Enum)
-instance Default AudioStatus where def = Idle
+data AudioStatus = Idle | Running | NotConnected deriving (Show, Eq, Generic, ToJSON, Enum)
+instance Default AudioStatus where def = NotConnected
 
 data ExternalClockStatus
     = NoSignal

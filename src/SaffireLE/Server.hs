@@ -8,7 +8,7 @@ import           Data.Default.Class             (def)
 
 import           Control.Concurrent             (forkIO, threadDelay)
 import           Control.Concurrent.STM.TChan
-import           Control.Concurrent.STM.TVar
+import           Control.Concurrent.STM.TVar    (modifyTVar)
 import           Control.Exception              hiding (bracket)
 import           Control.Lens.TH                (makeLenses)
 import           Control.Monad.Loops            (iterateM_, whileJust_)
@@ -16,6 +16,7 @@ import           Data.Aeson                     (FromJSON, ToJSON)
 import qualified Data.Aeson                     as A
 import           Data.Aeson.Extra               (StripLensPrefix (..))
 import qualified Data.ByteString.Char8          as BS
+import           Data.Default.Class             (Default, def)
 import qualified Data.Yaml                      as Y
 import qualified Data.Yaml.Pretty               as Y
 import           Fmt
@@ -42,14 +43,14 @@ data State =
     , _stereo :: !SM.StereoMixer
     }
     deriving stock (Generic, Show)
+    deriving anyclass (Default)
     deriving (ToJSON, FromJSON) via (StripLensPrefix State)
 
 makeLenses ''State
 
 data SaffireCmd =
     Meter
-    | GetState
-    | MixerCmd { cmd :: MixerCmd }
+    | SetState State
     deriving stock (Generic, Show)
     deriving anyclass (ToJSON, FromJSON)
 
@@ -91,50 +92,66 @@ data SaffireStatus =
 
 runServer :: IO ()
 runServer = do
+
+    deviceCommandChan <- atomically newTChan
+    statusChan <- atomically newBroadcastTChan
     connectedClientCountVar <- atomically $ newTVar 0
-    saffireCommandChan <- atomically newTChan
-    saffireStatusChan <- atomically newBroadcastTChan
+
+    -- Maintain stateVar
+    (readState, mixerCmdChan) <- do
+        stateFile <- statePath
+        initialState <- readState stateFile
+        stateVar <- atomically $ newTVar initialState
+        mixerCmdChan <- atomically newTChan
+        forkIO $ forever $ do
+            newState <- atomically $ do
+                mixerCmd <- readTChan mixerCmdChan
+                modifyTVar stateVar $ processMixerCmd mixerCmd
+                newState <- readTVar stateVar
+                writeTChan deviceCommandChan $ SetState newState
+                writeTChan statusChan  $ CurrentState newState
+                pure newState
+            writeState stateFile newState
+        pure (readTVar stateVar, mixerCmdChan)
+
+    -- Request meters update when clients are connected
     forkIO $ forever $ do
         atomically $ do
             connectedClientCount <- readTVar connectedClientCountVar
-            when (connectedClientCount > 0) $ writeTChan saffireCommandChan Meter
+            when (connectedClientCount > 0) $ writeTChan deviceCommandChan Meter
         threadDelay 40_000
 
-    runSaffire saffireCommandChan saffireStatusChan connectedClientCountVar
+    runSaffire deviceCommandChan statusChan connectedClientCountVar readState
 
-    Warp.run 3000 (app saffireCommandChan saffireStatusChan connectedClientCountVar)
+    Warp.run 3000 (app mixerCmdChan statusChan connectedClientCountVar readState)
 
-runSaffire :: TChan SaffireCmd -> TChan SaffireStatus -> TVar Int -> IO ()
-runSaffire cmdChan statusChan connectedClientCountVar = void $ forkIO $ do
-    stateFile <- statePath
+runSaffire :: TChan SaffireCmd -> TChan SaffireStatus -> TVar Int -> STM State -> IO ()
+runSaffire deviceCommandChan statusChan connectedClientCountVar readState = void $ forkIO $ do
     forever $ void $ do
         putTextLn "Trying to connect to the device"
         flip anyM nodeIds $ \nodeId -> do
             handle (\(err :: DeviceError) -> pure False) $ withDevice nodeId $ \devPtr -> do
                 putTextLn $ "Connected to device at "+|| nodeId ||+""
-                atomically $ emptyTChan cmdChan
-                initialState <- readState devPtr stateFile
-                flip iterateM_ initialState $ \state -> do
-                    cmd <- atomically (readTChan cmdChan)
-                    processCommand statusChan devPtr (writeState stateFile) state cmd
+                atomically $ emptyTChan deviceCommandChan
+                writeCurrentState devPtr
+                forever $ atomically (readTChan deviceCommandChan) >>= processCommand statusChan devPtr
         threadDelay 1_000_000
+    where
+    writeCurrentState devPtr = do
+        State matrix _ <- atomically $ readState
+        void $ writeSaffire devPtr $ hardwarizeMixerState matrix
 
-readState :: FWARef -> FilePath -> IO State
-readState devPtr file = do
+readState :: FilePath -> IO State
+readState file = do
     state <- Y.decodeFileEither file
     case state of
         Right state -> do
             putTextLn $ "Loaded state from "+| file |+""
             pure state
         Left err -> do
-            putTextLn $ "Could not parse "+| file |+": "
-            putStrLn $ Y.prettyPrintParseException err
-            putTextLn $ "Reading data from the device..."
-            initialMixerState <- updateMixerState def <$> readSaffire devPtr allControls
-            let stereoMixer = SM.toStereoMixer $ initialMixerState ^. M.lowResMixer
-                state = State initialMixerState stereoMixer
-            writeState file state
-            pure state
+            putTextLn $ "Could not load state from file, using defaults"
+            pure def
+
 
 writeState :: FilePath -> State -> IO ()
 writeState file state = do
@@ -159,24 +176,13 @@ time a = do
     return v
 
 
-processCommand :: TChan SaffireStatus -> FWARef -> (State -> IO ()) -> State -> SaffireCmd -> IO State
-processCommand statusChan devPtr _ state Meter = do
+processCommand :: TChan SaffireStatus -> FWARef -> SaffireCmd -> IO ()
+processCommand statusChan devPtr Meter = do
     rawMeters <- readSaffire devPtr allMeters
     let meters = updateDeviceStatus def rawMeters
     atomically $ writeTChan statusChan (Meters meters)
-    pure state
-processCommand statusChan devPtr _ state GetState = do
-    broadcastState statusChan state
-    pure state
-processCommand statusChan devPtr saveState state (MixerCmd mixerCmd) = do
-    let
-        state' = processMixerCmd mixerCmd state
-        State matrix stereo = state'
-        rawData = hardwarizeMixerState matrix
-    void $ writeSaffire devPtr rawData
-    broadcastState statusChan state'
-    saveState state
-    pure state'
+processCommand statusChan devPtr (SetState (State matrix _stereo)) = do
+    void $ writeSaffire devPtr $ hardwarizeMixerState matrix
 
 broadcastState :: TChan SaffireStatus -> State -> IO ()
 broadcastState statusChan state = atomically $ writeTChan statusChan (CurrentState state)
@@ -210,22 +216,22 @@ emptyTChan :: TChan a -> STM ()
 emptyTChan tchan = whileJust_ (tryReadTChan tchan) (const $ pure ())
 
 
-app :: TChan SaffireCmd -> TChan SaffireStatus -> TVar Int -> Application
-app cmdChan statusChan connectedClientCountVar = websocketsOr defaultConnectionOptions wsApp backupApp
+app :: TChan MixerCmd -> TChan SaffireStatus -> TVar Int -> STM State -> Application
+app cmdChan statusChan connectedClientCountVar readState = websocketsOr defaultConnectionOptions wsApp backupApp
   where
     wsApp :: ServerApp
     wsApp pendingConn = bracket (atomically $ modifyTVar connectedClientCountVar succ) (\_ -> atomically $ modifyTVar connectedClientCountVar pred) $ \_ -> do
         conn <- acceptRequest pendingConn
+        atomically readState >>= sendStatus conn . CurrentState
         void $ forkIO $ do
             localStatusChan <- atomically $ dupTChan statusChan
-            atomically $ writeTChan cmdChan GetState
-            forever $ do
-                message <- atomically $ readTChan localStatusChan
-                sendTextData conn $ A.encode message
+            forever $ atomically (readTChan localStatusChan) >>= sendStatus conn
         forever $ do
             message :: Maybe MixerCmd <- A.decode . fromDataMessage <$> receiveDataMessage conn
             print message
-            whenJust message $ atomically . writeTChan cmdChan . MixerCmd
+            whenJust message $ atomically . writeTChan cmdChan
 
     backupApp :: Application
     backupApp _ respond = respond $ responseLBS status400 [] "Not a WebSocket request"
+    sendStatus :: Connection -> SaffireStatus -> IO ()
+    sendStatus conn status = sendTextData conn $ A.encode $ status
