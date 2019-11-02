@@ -48,10 +48,10 @@ data DeviceCmd =
     deriving stock (Generic, Show)
 
 data UICmd =
-    UpdateState SM.MixerState
+    UpdateState { _state :: SM.MixerState }
     | PersistState
     deriving stock (Generic, Show)
-    deriving anyclass (ToJSON, FromJSON)
+    deriving (ToJSON, FromJSON) via (StripLensPrefix UICmd)
 
 data SaffireStatus =
     Meters DeviceStatus
@@ -165,6 +165,7 @@ app cmdChan statusChan connectedClientCountVar readState persistState = websocke
     wsApp :: WS.ServerApp
     wsApp pendingConn = bracket (atomically $ modifyTVar connectedClientCountVar succ) (\_ -> atomically $ modifyTVar connectedClientCountVar pred) $ \_ -> do
         conn <- acceptRequest pendingConn
+        putTextLn "New client connected"
         atomically readState >>= sendStatus conn . CurrentState
         void $ forkIO $ do
             localStatusChan <- atomically $ dupTChan statusChan
@@ -177,6 +178,7 @@ app cmdChan statusChan connectedClientCountVar readState persistState = websocke
                     Right (UpdateState state) -> atomically $ writeTChan cmdChan state
                     Right PersistState        -> atomically persistState
                     Left err                  -> print err
+        putTextLn "Client finished"
 
     backupApp :: Application
     backupApp _ respond = respond $ responseLBS status400 [] "Not a WebSocket request"
