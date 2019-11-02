@@ -41,9 +41,14 @@ import           System.Directory               (createDirectoryIfMissing, getAp
 import           Text.Printf
 
 
-data SaffireCmd =
-    Meter
-    | UpdateState SM.MixerState
+data DeviceCmd =
+    DeviceMeter
+    | DeviceUpdateState SM.MixerState
+    | DevicePersistState
+    deriving stock (Generic, Show)
+
+data UICmd =
+    UpdateState SM.MixerState
     | PersistState
     deriving stock (Generic, Show)
     deriving anyclass (ToJSON, FromJSON)
@@ -70,7 +75,7 @@ runServer = do
             newState <- atomically $ do
                 newState <- readTChan mixerUpdateChan
                 writeTVar stateVar newState
-                writeTChan deviceCommandChan $ UpdateState newState
+                writeTChan deviceCommandChan $ DeviceUpdateState newState
                 writeTChan statusChan  $ CurrentState newState
                 pure newState
             writeState stateFile newState
@@ -80,14 +85,14 @@ runServer = do
     forkIO $ forever $ do
         atomically $ do
             connectedClientCount <- readTVar connectedClientCountVar
-            when (connectedClientCount > 0) $ writeTChan deviceCommandChan Meter
+            when (connectedClientCount > 0) $ writeTChan deviceCommandChan DeviceMeter
         threadDelay 40_000
-
+    let persistState = writeTChan deviceCommandChan DevicePersistState
     runSaffire deviceCommandChan statusChan connectedClientCountVar readState
 
-    Warp.run 3000 (app mixerUpdateChan statusChan connectedClientCountVar readState)
+    Warp.run 3000 $ app mixerUpdateChan statusChan connectedClientCountVar readState persistState
 
-runSaffire :: TChan SaffireCmd -> TChan SaffireStatus -> TVar Int -> STM SM.MixerState -> IO ()
+runSaffire :: TChan DeviceCmd -> TChan SaffireStatus -> TVar Int -> STM SM.MixerState -> IO ()
 runSaffire deviceCommandChan statusChan connectedClientCountVar readState = void $ forkIO $ do
     forever $ void $ do
         putTextLn "Trying to connect to the device"
@@ -138,14 +143,14 @@ time a = do
     return v
 
 
-processCommand :: TChan SaffireStatus -> FWARef -> SaffireCmd -> IO ()
-processCommand statusChan devPtr Meter = do
+processCommand :: TChan SaffireStatus -> FWARef -> DeviceCmd -> IO ()
+processCommand statusChan devPtr DeviceMeter = do
     rawMeters <- readSaffire devPtr allMeters
     let meters = updateDeviceStatus rawMeters
     atomically $ writeTChan statusChan (Meters meters)
-processCommand statusChan devPtr (UpdateState state) = do
+processCommand statusChan devPtr (DeviceUpdateState state) = do
     void $ writeSaffire devPtr $ hardwarizeMixerState $ SM.toRaw state
-processCommand statusChan devPtr PersistState = do
+processCommand statusChan devPtr DevicePersistState = do
     void $ writeSaffire devPtr [(SaveSettings, 1)]
 
 broadcastState :: TChan SaffireStatus -> SM.MixerState -> IO ()
@@ -154,8 +159,8 @@ broadcastState statusChan state = atomically $ writeTChan statusChan (CurrentSta
 emptyTChan :: TChan a -> STM ()
 emptyTChan tchan = whileJust_ (tryReadTChan tchan) (const $ pure ())
 
-app :: TChan SM.MixerState -> TChan SaffireStatus -> TVar Int -> STM SM.MixerState -> Application
-app cmdChan statusChan connectedClientCountVar readState = websocketsOr defaultConnectionOptions wsApp backupApp
+app :: TChan SM.MixerState -> TChan SaffireStatus -> TVar Int -> STM SM.MixerState -> STM () -> Application
+app cmdChan statusChan connectedClientCountVar readState persistState = websocketsOr defaultConnectionOptions wsApp backupApp
   where
     wsApp :: WS.ServerApp
     wsApp pendingConn = bracket (atomically $ modifyTVar connectedClientCountVar succ) (\_ -> atomically $ modifyTVar connectedClientCountVar pred) $ \_ -> do
@@ -164,12 +169,14 @@ app cmdChan statusChan connectedClientCountVar readState = websocketsOr defaultC
         void $ forkIO $ do
             localStatusChan <- atomically $ dupTChan statusChan
             forever $ atomically (readTChan localStatusChan) >>= sendStatus conn
-        forever $ do
-            message :: Either String SM.MixerState <- A.eitherDecode . fromDataMessage <$> receiveDataMessage conn
-            print message
-            case message of
-                Right state -> atomically $ writeTChan cmdChan state
-                Left err    -> print err
+        handle (\(e :: ConnectionException) -> putTextLn $ show e) $
+            forever $ do
+                message :: Either String UICmd <- A.eitherDecode <$> receiveData conn
+                print message
+                case message of
+                    Right (UpdateState state) -> atomically $ writeTChan cmdChan state
+                    Right PersistState        -> atomically persistState
+                    Left err                  -> print err
 
     backupApp :: Application
     backupApp _ respond = respond $ responseLBS status400 [] "Not a WebSocket request"
