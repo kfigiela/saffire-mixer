@@ -16,12 +16,14 @@ module SaffireLE.Device
 
 import           Universum
 
+import           Control.Concurrent   (forkIO, threadDelay)
 import           Control.Exception    (throw)
 import           Data.List.Split      (chunksOf)
 import           Data.Memory.Endian   (BE, fromBE, toBE)
+import qualified Data.Text            as Text
+import           Fmt
 import           Foreign              (alloca, allocaBytes, castPtr, peek, peekArray, plusPtr, poke, pokeArray)
 import           Foreign.C.Types      (CInt (..), CUInt (..), CULong (..))
-
 import           SaffireLE.RawControl (RawControl (..), RawControlValue, fromRawControlEnum, toRawControlEnum)
 
 data FWADev
@@ -73,8 +75,10 @@ data SaffireLEResponse =
 
 -- protocol decoding
 
-arrayToEntry :: [BE Word32] -> [(RawControl, RawControlValue)]
-arrayToEntry (controlId:value:tail) = (toRawControlEnum $ fromBE controlId, fromBE value):(arrayToEntry tail)
+arrayToEntry :: [BE Word32] -> [Either Text (RawControl, RawControlValue)]
+arrayToEntry (controlId:value:tail) =  case toRawControlEnum (fromBE controlId) of
+    Just control -> (Right (control, fromBE value)):(arrayToEntry tail)
+    Nothing      -> (Left $ "got garbage from device: "+| hexF (fromBE controlId) |+" = "+| hexF (fromBE value) |+""):(arrayToEntry tail)
 arrayToEntry [_]                    = error "odd number of values"
 arrayToEntry []                     = []
 
@@ -87,7 +91,11 @@ peekResponse ptr = do
         let [_, _, _, _, _, _, _, count] = header
         rows <- peekArray (2 * fromIntegral count) ((castPtr ptr) `plusPtr` 8)
 
-        let payload = arrayToEntry rows
+        let payloadOrErrors = arrayToEntry rows
+            payload = rights payloadOrErrors
+            errors = lefts payloadOrErrors
+
+        when (length errors > 0) $ putTextLn $ Text.intercalate "\n" errors
         pure $ SaffireLEResponse { _payload = payload}
 
 pokeQuery :: Ptr SaffireLEQuery -> SaffireLEQuery -> IO ()

@@ -63,8 +63,31 @@ data VUMeters
     , _dac4      :: MeterValue
     }
     deriving stock (Show, Eq, Generic)
-    deriving anyclass (Default)
     deriving (ToJSON) via (StripLensPrefix VUMeters)
+
+instance Default VUMeters where
+    def = VUMeters
+        { _in1       = nan
+        , _in3       = nan
+        , _spdifIn1  = nan
+        , _in2       = nan
+        , _in4       = nan
+        , _spdifIn2  = nan
+        , _out1      = nan
+        , _out3      = nan
+        , _out5      = nan
+        , _spdifOut7 = nan
+        , _out2      = nan
+        , _out4      = nan
+        , _out6      = nan
+        , _spdifOut8 = nan
+        , _dac1      = nan
+        , _dac3      = nan
+        , _dac2      = nan
+        , _dac4      = nan
+        }
+        where nan = 0.0/0.0
+
 makeLenses ''VUMeters
 
 data AudioStatus = Idle | Running | NotConnected deriving (Show, Eq, Generic, ToJSON, Enum)

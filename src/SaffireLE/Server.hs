@@ -43,7 +43,7 @@ import           Text.Printf
 
 data DeviceCmd =
     DeviceMeter
-    | DeviceUpdateState SM.MixerState
+    | DeviceUpdateState SM.MixerState SM.MixerState
     | DevicePersistState
     deriving stock (Generic, Show)
 
@@ -73,9 +73,10 @@ runServer = do
         mixerUpdateChan <- atomically newTChan
         forkIO $ forever $ do
             newState <- atomically $ do
+                oldState <- readTVar stateVar
                 newState <- readTChan mixerUpdateChan
                 writeTVar stateVar newState
-                writeTChan deviceCommandChan $ DeviceUpdateState newState
+                writeTChan deviceCommandChan $ DeviceUpdateState oldState newState
                 writeTChan statusChan  $ CurrentState newState
                 pure newState
             writeState stateFile newState
@@ -86,7 +87,7 @@ runServer = do
         atomically $ do
             connectedClientCount <- readTVar connectedClientCountVar
             when (connectedClientCount > 0) $ writeTChan deviceCommandChan DeviceMeter
-        threadDelay 40_000
+        threadDelay 50_000
     let persistState = writeTChan deviceCommandChan DevicePersistState
     runSaffire deviceCommandChan statusChan connectedClientCountVar readState
 
@@ -148,9 +149,13 @@ processCommand statusChan devPtr DeviceMeter = do
     rawMeters <- readSaffire devPtr allMeters
     let meters = updateDeviceStatus rawMeters
     atomically $ writeTChan statusChan (Meters meters)
-processCommand statusChan devPtr (DeviceUpdateState state) = do
-    void $ writeSaffire devPtr $ hardwarizeMixerState $ SM.toRaw state
-processCommand statusChan devPtr DevicePersistState = do
+processCommand statusChan devPtr (DeviceUpdateState oldState newState) = do
+    let newControls = hardwarizeMixerState $ SM.toRaw newState
+    let oldControls = hardwarizeMixerState $ SM.toRaw oldState
+    let rejectEqual a b = if a == b then Nothing else Just a
+    result <- writeSaffire devPtr $ catMaybes $ zipWith rejectEqual newControls oldControls
+    putTextLn $ show result
+processCommand statusChan devPtr DevicePersistState =
     void $ writeSaffire devPtr [(SaveSettings, 1)]
 
 broadcastState :: TChan SaffireStatus -> SM.MixerState -> IO ()

@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module SaffireLE.RawControl where
 
 import           Universum
@@ -129,11 +131,11 @@ data RawControl =
     | SpdifTransparent -- ^ SPDIF pass-thru
     deriving (Show, Eq, Ord)
 
-fromRawControlEnum :: RawControl -> RawControlId
-fromRawControlEnum = fromJust . flip lookup controlsTable
+fromRawControlEnum :: HasCallStack => RawControl -> RawControlId
+fromRawControlEnum control = fromMaybe (error $ "fromRawControlEnum " <> show control) $ lookup control controlsTable
 
-toRawControlEnum :: RawControlId -> RawControl
-toRawControlEnum = fromJust . flip lookup (map swap controlsTable)
+toRawControlEnum :: HasCallStack => RawControlId -> Maybe RawControl
+toRawControlEnum control = lookup control (map swap controlsTable)
 
 -- | Encodes mapping between control enum and control id
 controlsTable :: [(RawControl, RawControlId)]
