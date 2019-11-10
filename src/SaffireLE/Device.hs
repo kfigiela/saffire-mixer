@@ -95,7 +95,7 @@ peekResponse ptr = do
             payload = rights payloadOrErrors
             errors = lefts payloadOrErrors
 
-        when (length errors > 0) $ putTextLn $ Text.intercalate "\n" errors
+        when (length errors > 0) $ putTextLn $ "Invalid data returned by the device: " <> Text.intercalate "\n" errors
         pure $ SaffireLEResponse { _payload = payload}
 
 pokeQuery :: Ptr SaffireLEQuery -> SaffireLEQuery -> IO ()

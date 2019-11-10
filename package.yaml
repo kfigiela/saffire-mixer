@@ -41,6 +41,7 @@ dependencies:
   - monad-loops
   - directory
   - smuggler
+  - fast-logger
 default-extensions:
   - NoImplicitPrelude
   - OverloadedStrings

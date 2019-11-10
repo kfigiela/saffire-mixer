@@ -36,7 +36,7 @@ data Command
   | SaveSettings
   | Status
   | Meter
-  | Server
+  | Server { _port :: Int }
   deriving (Eq, Show)
 
 loadSettings :: FilePath -> Parser Command
@@ -57,7 +57,7 @@ cli defaultSettingsPath = hsubparser
    <> command "save"  (info (pure SaveSettings) (progDesc "Store settings in a persistent device memory. Causes brief audio interruption."))
    <> command "status" (info (pure Status) (progDesc "Display device status incl. metering values"))
    <> command "meter" (info (pure Meter) (progDesc "Display bar meters"))
-   <> command "server" (info (pure Server) (progDesc "Display bar meters"))
+   <> command "server" (info (Server <$> option auto (long "port" <> short 'p' <> help "Port to listen on" <> metavar "PORT" <> value 53625 <> showDefault)) (progDesc "Start server"))
    )
 
 main :: IO ()
@@ -106,7 +106,7 @@ runCommands cmd =
                 let status = updateDeviceStatus rawData
                 displayMeters terminalWidth status
                 threadDelay 40000
-        Server -> runServer
+        Server port -> runServer port
 
 runDevice :: (FWARef -> IO ()) -> IO ()
 runDevice action = do
