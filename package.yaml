@@ -42,6 +42,7 @@ dependencies:
   - directory
   - smuggler
   - fast-logger
+  - wai-middleware-static
 default-extensions:
   - NoImplicitPrelude
   - OverloadedStrings

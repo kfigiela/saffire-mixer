@@ -25,7 +25,9 @@ import           Network.HTTP.Types             (status200, status400)
 import           Network.Wai
 import qualified Network.Wai.Handler.Warp       as Warp (run)
 import           Network.Wai.Handler.WebSockets
+import qualified Network.Wai.Middleware.Static  as Static
 import           Network.WebSockets             as WS
+
 import           SaffireLE.Device               (DeviceError, FWARef, nodeIds, readSaffire, withDevice, writeSaffire)
 import qualified SaffireLE.Mixer                as M
 import           SaffireLE.Mixer.Raw            (hardwarizeMixerState)
@@ -105,7 +107,7 @@ runServer port = do
         let persistState = writeTChan deviceCommandChan DevicePersistState
         runSaffire log deviceCommandChan statusChan connectedClientCountVar readState
 
-        Warp.run port $ app log mixerUpdateChan statusChan connectedClientCountVar readState persistState
+        Warp.run port $ withStatic $ app log mixerUpdateChan statusChan connectedClientCountVar readState persistState
 
 runSaffire :: Logger -> TChan DeviceCmd -> TChan SaffireStatus -> TVar Int -> STM SM.MixerState -> IO ()
 runSaffire log deviceCommandChan statusChan connectedClientCountVar readState = void $ forkIO $ do
@@ -195,3 +197,13 @@ app log cmdChan statusChan connectedClientCountVar readState persistState = webs
     backupApp _ respond = respond $ responseLBS status400 [] "Not a WebSocket request"
     sendStatus :: WS.Connection -> SaffireStatus -> IO ()
     sendStatus conn status = sendTextData conn $ A.encode $ status
+
+withStatic :: Middleware
+withStatic = redirectIndex . Static.staticPolicy (Static.addBase "www")
+
+redirectIndex :: Middleware
+redirectIndex app = \request respond ->
+        if rawPathInfo request == "/"
+            then app (request { rawPathInfo = "/index.html", pathInfo = ["index.html"] }) respond
+            else app request respond
+        -- in app request' responceFunc
