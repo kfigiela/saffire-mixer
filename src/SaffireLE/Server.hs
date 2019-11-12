@@ -206,4 +206,3 @@ redirectIndex app = \request respond ->
         if rawPathInfo request == "/"
             then app (request { rawPathInfo = "/index.html", pathInfo = ["index.html"] }) respond
             else app request respond
-        -- in app request' responceFunc
